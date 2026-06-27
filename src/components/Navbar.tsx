@@ -108,7 +108,7 @@ export default function Navbar({ currentUser, settings, activeTab, setActiveTab,
           </div>
           <div className="min-w-0">
             <h1 className="text-slate-900 font-bold text-base tracking-tight truncate leading-tight">
-              {settings.storeName || 'Nukus POS'}
+              {settings.storeName || 'CDCGroup POS'}
             </h1>
             <p className="text-[10px] text-slate-400 font-medium">Savdo tizimi</p>
           </div>
@@ -193,7 +193,7 @@ export default function Navbar({ currentUser, settings, activeTab, setActiveTab,
               <Store className="h-4 w-4 text-white" />
             </div>
             <span className="font-bold text-sm tracking-tight text-slate-900">
-              {settings.storeName || 'Nukus POS'}
+              {settings.storeName || 'CDCGroup POS'}
             </span>
           </div>
           <button
@@ -213,7 +213,7 @@ export default function Navbar({ currentUser, settings, activeTab, setActiveTab,
                   <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                     <Store className="h-4 w-4 text-white" />
                   </div>
-                  <span className="font-bold text-slate-900">Nukus POS</span>
+                  <span className="font-bold text-slate-900">CDCGroup POS</span>
                 </div>
                 <button
                   onClick={() => setMobileMenuOpen(false)}

@@ -25,7 +25,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         settings = StoreSettings.get_solo()
-        settings.store_name = 'Nukus Savdo Markazi'
+        settings.store_name = 'CDCGroup POS'
         settings.address = "Toshkent shahar, Mirzo Ulug'bek tumani, Mustaqillik shoh ko'chasi, 45-uy"
         settings.phone = '+998 71 200-30-40'
         settings.currency = "so'm"

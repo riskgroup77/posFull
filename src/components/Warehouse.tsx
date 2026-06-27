@@ -231,7 +231,7 @@ export default function Warehouse({
     printWindow.document.write(`
       <html>
         <head>
-          <title>Nukus POS - Ombor Hisoboti</title>
+          <title>CDCGroup POS - Ombor Hisoboti</title>
           <style>
             body { font-family: 'Arial', sans-serif; padding: 30px; color: #334155; line-height: 1.5; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -249,7 +249,7 @@ export default function Warehouse({
         </head>
         <body>
           <div class="header">
-            <div class="logo">Nukus POS</div>
+            <div class="logo">CDCGroup POS</div>
             <div class="meta">
               <p style="margin: 0;">Sana: ${new Date().toLocaleString('uz-UZ')}</p>
               <p style="margin: 5px 0 0 0;">Yaratdi: ${currentUser.name}</p>
@@ -259,7 +259,7 @@ export default function Warehouse({
           ${contentHtml}
           
           <div class="footer">
-            Nukus POS tizimidan yuklab olingan rasmiy ombor hisoboti. &copy; ${new Date().getFullYear()}
+            CDCGroup POS tizimidan yuklab olingan rasmiy ombor hisoboti. &copy; ${new Date().getFullYear()}
           </div>
           <script>
             window.onload = function() {

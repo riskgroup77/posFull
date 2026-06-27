@@ -232,7 +232,7 @@ class InventoryMovement(models.Model):
 
 class StoreSettings(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
-    store_name = models.CharField(max_length=255, default='Nukus POS')
+    store_name = models.CharField(max_length=255, default='CDCGroup POS')
     address = models.TextField(blank=True, default='')
     phone = models.CharField(max_length=64, blank=True, default='')
     logo_url = models.URLField(blank=True, default='')

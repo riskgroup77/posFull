@@ -332,7 +332,7 @@ export default function POS({
     printWindow.document.write(`
       <html>
         <head>
-          <title>Nukus POS - Chek #${sale.receiptNo}</title>
+          <title>CDCGroup POS - Chek #${sale.receiptNo}</title>
           <style>
             body {
               font-family: 'Courier New', Courier, monospace;
@@ -423,7 +423,7 @@ export default function POS({
           
           <div class="text-center footer">
             <p style="margin: 0; font-weight: bold;">${settings.receiptFooter}</p>
-            <p style="margin: 8px 0 0 0; font-size: 8px;">Nukus POS tizimi orqali yaratildi</p>
+            <p style="margin: 8px 0 0 0; font-size: 8px;">CDCGroup POS tizimi orqali yaratildi</p>
           </div>
           
           <script>

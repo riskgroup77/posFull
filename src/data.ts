@@ -388,7 +388,7 @@ export const MOCK_MOVEMENTS: InventoryMovement[] = [
 
 // Default Store Settings
 export const DEFAULT_SETTINGS: StoreSettings = {
-  storeName: 'Nukus Savdo Markazi',
+  storeName: 'CDCGroup POS',
   address: 'Toshkent shahar, Mirzo Ulug\'bek tumani, Mustaqillik shoh ko\'chasi, 45-uy',
   phone: '+998 71 200-30-40',
   logoUrl: '',

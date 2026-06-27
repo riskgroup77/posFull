@@ -57,7 +57,7 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               <Store className="h-7 w-7 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-extrabold tracking-tight text-slate-900 block leading-tight">Nukus POS</span>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 block leading-tight">CDCGroup POS</span>
               <span className="text-xs text-slate-500 font-medium">Savdo va Ombor Boshqaruvi</span>
             </div>
           </div>
