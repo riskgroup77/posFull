@@ -27,7 +27,8 @@ backend/**/__pycache__/
 *.pyc
 *.pyo
 
-# IDE
+.env.deploy
+
 .idea/
 .vscode/
 *.swp
