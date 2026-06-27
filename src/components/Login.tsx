@@ -1,18 +1,12 @@
 import React, { useState } from 'react';
-import { User, UserRole } from '../types';
+import { User } from '../types';
 import { login } from '../api';
 import { ApiError } from '../api/client';
-import { Lock, Mail, Store, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Lock, Mail, Store, AlertCircle } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
 }
-
-const QUICK_CREDENTIALS: Record<UserRole, { email: string; password: string }> = {
-  [UserRole.ADMIN]: { email: 'admin@pos.uz', password: 'admin123' },
-  [UserRole.MANAGER]: { email: 'manager@pos.uz', password: 'manager123' },
-  [UserRole.SELLER]: { email: 'seller@pos.uz', password: 'seller123' },
-};
 
 export default function Login({ onLoginSuccess }: LoginProps) {
   const [email, setEmail] = useState('');
@@ -51,11 +45,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     doLogin(email, password);
-  };
-
-  const handleQuickLogin = (role: UserRole) => {
-    const creds = QUICK_CREDENTIALS[role];
-    doLogin(creds.email, creds.password);
   };
 
   return (
@@ -135,47 +124,6 @@ export default function Login({ onLoginSuccess }: LoginProps) {
               </button>
             </div>
           </form>
-
-          <div className="mt-8">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <div className="relative flex justify-center text-xs text-slate-500 uppercase">
-                <span className="bg-white px-2">Tezkor kirish</span>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleQuickLogin(UserRole.ADMIN)}
-                className="flex flex-col items-center justify-center p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-700 text-xs font-semibold hover:border-blue-500 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <ShieldAlert className="h-5 w-5 text-red-500 mb-1" />
-                Admin
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleQuickLogin(UserRole.MANAGER)}
-                className="flex flex-col items-center justify-center p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-700 text-xs font-semibold hover:border-blue-500 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Store className="h-5 w-5 text-amber-500 mb-1" />
-                Menejer
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleQuickLogin(UserRole.SELLER)}
-                className="flex flex-col items-center justify-center p-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-700 text-xs font-semibold hover:border-blue-500 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <Lock className="h-5 w-5 text-green-500 mb-1" />
-                Sotuvchi
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
