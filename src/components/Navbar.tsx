@@ -151,48 +151,6 @@ export default function Navbar({ currentUser, settings, activeTab, setActiveTab,
                     </span>
                   </div>
 
-                  <div className="p-1.5 bg-slate-50/80 border-b border-slate-100">
-                    <div className="px-2 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                      Rollar (Demo)
-                    </div>
-                    {currentUser.role !== UserRole.ADMIN && (
-                      <button
-                        onClick={() => {
-                          setDropdownOpen(false);
-                          window.dispatchEvent(new CustomEvent('demo-switch-role', { detail: UserRole.ADMIN }));
-                        }}
-                        className="w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-white rounded-lg flex items-center gap-1.5 cursor-pointer border-none bg-transparent"
-                      >
-                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-                        Admin
-                      </button>
-                    )}
-                    {currentUser.role !== UserRole.MANAGER && (
-                      <button
-                        onClick={() => {
-                          setDropdownOpen(false);
-                          window.dispatchEvent(new CustomEvent('demo-switch-role', { detail: UserRole.MANAGER }));
-                        }}
-                        className="w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-white rounded-lg flex items-center gap-1.5 cursor-pointer border-none bg-transparent"
-                      >
-                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                        Menejer
-                      </button>
-                    )}
-                    {currentUser.role !== UserRole.SELLER && (
-                      <button
-                        onClick={() => {
-                          setDropdownOpen(false);
-                          window.dispatchEvent(new CustomEvent('demo-switch-role', { detail: UserRole.SELLER }));
-                        }}
-                        className="w-full px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-white rounded-lg flex items-center gap-1.5 cursor-pointer border-none bg-transparent"
-                      >
-                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                        Kassir
-                      </button>
-                    )}
-                  </div>
-
                   <button
                     onClick={() => {
                       setDropdownOpen(false);

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Product, Customer, Sale, Debt, User } from '../types';
+import { Product, Category, Customer, Sale, Debt, User } from '../types';
+import { toDateStr, monthPrefix, monthNameUz, lastNDays } from '../utils/dates';
 import { 
   TrendingUp, 
   ShoppingCart, 
@@ -35,6 +36,7 @@ import {
 
 interface DashboardProps {
   products: Product[];
+  categories: Category[];
   customers: Customer[];
   sales: Sale[];
   debts: Debt[];
@@ -45,7 +47,8 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ 
-  products, 
+  products,
+  categories,
   customers, 
   sales, 
   debts, 
@@ -61,8 +64,9 @@ export default function Dashboard({
     return new Intl.NumberFormat('uz-UZ').format(value) + " so'm";
   };
 
-  // Current Date definitions
-  const todayStr = '2026-06-26'; // Match mock datetime prefix
+  const todayStr = toDateStr();
+  const weekStartStr = lastNDays(7)[0];
+  const currentMonth = monthPrefix();
 
   // Filters sales by date range
   const filteredSales = useMemo(() => {
@@ -71,15 +75,13 @@ export default function Dashboard({
       if (timeFilter === 'today') {
         return saleDate === todayStr;
       } else if (timeFilter === 'week') {
-        // Last 7 days (mock representation of days from June 20 to June 26)
-        return saleDate >= '2026-06-20' && saleDate <= '2026-06-26';
+        return saleDate >= weekStartStr && saleDate <= todayStr;
       } else if (timeFilter === 'month') {
-        // Current month
-        return saleDate.startsWith('2026-06');
+        return saleDate.startsWith(currentMonth);
       }
-      return true; // All
+      return true;
     });
-  }, [sales, timeFilter]);
+  }, [sales, timeFilter, todayStr, weekStartStr, currentMonth]);
 
   // Statistics calculation
   const stats = useMemo(() => {
@@ -92,7 +94,7 @@ export default function Dashboard({
     const todayDebtSum = todaySales.reduce((sum, s) => sum + s.debtAmount, 0);
 
     // Month's stats specifically
-    const monthSales = sales.filter(s => s.dateTime.startsWith('2026-06') && s.status === 'completed');
+    const monthSales = sales.filter(s => s.dateTime.startsWith(currentMonth) && s.status === 'completed');
     const monthSalesSum = monthSales.reduce((sum, s) => sum + s.finalAmount, 0);
     const monthTxCount = monthSales.length;
 
@@ -122,7 +124,7 @@ export default function Dashboard({
       lowStockProducts,
       highestTodaySale
     };
-  }, [products, customers, sales]);
+  }, [products, customers, sales, todayStr, currentMonth]);
 
   // Alert definitions: Overdue debts
   const overdueDebts = useMemo(() => {
@@ -136,7 +138,7 @@ export default function Dashboard({
 
   // Chart Data 1: Line chart for daily sales (last 7 days, June 20 - June 26)
   const dailySalesChartData = useMemo(() => {
-    const dates = ['2026-06-20', '2026-06-21', '2026-06-22', '2026-06-23', '2026-06-24', '2026-06-25', '2026-06-26'];
+    const dates = lastNDays(7);
     const daysMap = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
     
     return dates.map(dt => {
@@ -196,37 +198,32 @@ export default function Dashboard({
 
   // Chart Data 4: Category Distribution of sales volume
   const categorySalesChartData = useMemo(() => {
-    const catSalesMap: { [catName: string]: number } = {
-      'Ichimliklar': 0,
-      'Oziq-ovqat': 0,
-      'Shirinliklar': 0,
-      'Sut mahsulotlari': 0,
-      'Boshqa': 0
-    };
+    const catSalesMap: Record<string, number> = {};
+    categories.forEach((c) => { catSalesMap[c.id] = 0; });
+    catSalesMap['__other__'] = 0;
 
     sales.forEach(sale => {
       if (sale.status === 'completed') {
         sale.items.forEach(item => {
-          // Find matching product's category
           const product = products.find(p => p.id === item.productId);
-          if (product) {
-            if (product.categoryId === 'cat-1') catSalesMap['Ichimliklar'] += item.total;
-            else if (product.categoryId === 'cat-2') catSalesMap['Oziq-ovqat'] += item.total;
-            else if (product.categoryId === 'cat-3') catSalesMap['Shirinliklar'] += item.total;
-            else if (product.categoryId === 'cat-4') catSalesMap['Sut mahsulotlari'] += item.total;
-            else catSalesMap['Boshqa'] += item.total;
+          const catId = product?.categoryId;
+          if (catId && catSalesMap[catId] !== undefined) {
+            catSalesMap[catId] += item.total;
           } else {
-            catSalesMap['Boshqa'] += item.total;
+            catSalesMap['__other__'] += item.total;
           }
         });
       }
     });
 
-    return Object.keys(catSalesMap).map(key => ({
-      name: key,
-      'Tushum': catSalesMap[key]
-    }));
-  }, [sales, products]);
+    const catNameById = Object.fromEntries(categories.map((c) => [c.id, c.name]));
+    return Object.entries(catSalesMap)
+      .filter(([, value]) => value > 0)
+      .map(([id, value]) => ({
+        name: id === '__other__' ? 'Boshqa' : (catNameById[id] || 'Noma\'lum'),
+        'Tushum': value,
+      }));
+  }, [sales, products, categories]);
 
   return (
     <div className="pos-page">
@@ -341,7 +338,7 @@ export default function Dashboard({
         {/* Month Sales */}
         <div className="pos-card-hover p-5 flex items-center justify-between">
           <div className="space-y-1">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Oylik Sotuv (Iyun)</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Oylik Sotuv ({monthNameUz()})</p>
             <h3 className="text-xl font-extrabold text-slate-800">{formatMoney(stats.monthSalesSum)}</h3>
             <p className="text-[10px] text-slate-500 font-semibold">{stats.monthTxCount} ta oylik tranzaksiyalar</p>
           </div>

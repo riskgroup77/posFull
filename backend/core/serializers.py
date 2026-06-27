@@ -35,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserCreateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='display_name')
-    password = serializers.CharField(write_only=True, min_length=4)
+    password = serializers.CharField(write_only=True, min_length=8)
     status = serializers.CharField(source='account_status', required=False, default='active')
 
     class Meta:

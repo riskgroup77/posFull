@@ -1,5 +1,5 @@
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
 from django.utils import timezone
@@ -16,6 +16,12 @@ from .models import (
     StoreSettings,
 )
 
+MONEY_QUANT = Decimal('0.01')
+
+
+def _money(value) -> Decimal:
+    return Decimal(str(value)).quantize(MONEY_QUANT, rounding=ROUND_HALF_UP)
+
 
 def next_receipt_no():
     settings = StoreSettings.get_solo()
@@ -24,54 +30,134 @@ def next_receipt_no():
     return str(settings.receipt_counter).zfill(6)
 
 
+def _validate_payment_split(payment_type, final_amount, cash_paid, debt_amount):
+    final_amount = _money(final_amount)
+    cash_paid = _money(cash_paid)
+    debt_amount = _money(debt_amount)
+
+    if payment_type == Sale.PAYMENT_CASH:
+        if debt_amount != 0:
+            raise ValueError('Naqd to\'lovda qarz bo\'lmasligi kerak')
+        if cash_paid != final_amount:
+            raise ValueError('Naqd to\'lov summasi noto\'g\'ri')
+    elif payment_type == Sale.PAYMENT_DEBT:
+        if cash_paid != 0:
+            raise ValueError('Nasiya to\'lovida naqd qism bo\'lmasligi kerak')
+        if debt_amount != final_amount:
+            raise ValueError('Nasiya summasi noto\'g\'ri')
+    elif payment_type == Sale.PAYMENT_MIXED:
+        if cash_paid + debt_amount != final_amount:
+            raise ValueError('Aralash to\'lov summalari mos kelmaydi')
+        if cash_paid <= 0 or debt_amount <= 0:
+            raise ValueError('Aralash to\'lovda ikkala qism ham musbat bo\'lishi kerak')
+    else:
+        raise ValueError('Noto\'g\'ri to\'lov turi')
+
+    return final_amount, cash_paid, debt_amount
+
+
+def _build_sale_lines(items_data):
+    built = []
+    subtotal = Decimal('0')
+
+    for item in items_data:
+        product_id = item.get('productId') or item.get('product_id')
+        product = Product.objects.select_for_update().get(pk=product_id)
+
+        if product.status != Product.STATUS_ACTIVE:
+            raise ValueError(f"{product.name} nofaol — sotib bo'lmaydi")
+
+        qty = _money(item['quantity'])
+        if qty <= 0:
+            raise ValueError('Miqdor noto\'g\'ri')
+
+        if product.stock < qty:
+            raise ValueError(f"{product.name} uchun omborda yetarli qoldiq yo'q")
+
+        unit_price = _money(product.sale_price)
+        line_total = _money(unit_price * qty)
+        subtotal += line_total
+
+        built.append({
+            'product': product,
+            'product_name': product.name,
+            'quantity': qty,
+            'price': unit_price,
+            'total': line_total,
+        })
+
+    return built, subtotal
+
+
 @transaction.atomic
 def create_sale(user, data):
     settings = StoreSettings.get_solo()
     customer = None
     customer_id = data.get('customerId') or data.get('customer_id')
+    payment_type = data['payment_type']
+
+    built_items, subtotal = _build_sale_lines(data['items'])
+
+    discount = _money(data.get('discount', 0))
+    if discount < 0:
+        raise ValueError('Chegirma manfiy bo\'lmasligi kerak')
+    if discount > subtotal:
+        raise ValueError('Chegirma jami summadan oshmasligi kerak')
+
+    final_amount = _money(subtotal - discount)
+    cash_paid = _money(data.get('cash_paid', data.get('cashPaid', 0)))
+    debt_amount = _money(data.get('debt_amount', data.get('debtAmount', 0)))
+
+    final_amount, cash_paid, debt_amount = _validate_payment_split(
+        payment_type, final_amount, cash_paid, debt_amount,
+    )
+
+    debt_due_date = data.get('debt_due_date') or data.get('debtDueDate')
+
+    if payment_type in (Sale.PAYMENT_DEBT, Sale.PAYMENT_MIXED):
+        if not customer_id:
+            raise ValueError('Nasiya uchun mijoz tanlanishi shart')
+        if settings.mandatory_debt_due_date and not debt_due_date:
+            raise ValueError('Nasiya muddati kiritilishi shart')
 
     if customer_id:
         customer = Customer.objects.get(pk=customer_id)
-        if data['payment_type'] in (Sale.PAYMENT_DEBT, Sale.PAYMENT_MIXED):
+        if payment_type in (Sale.PAYMENT_DEBT, Sale.PAYMENT_MIXED):
             if customer.status != Customer.STATUS_ACTIVE:
                 raise ValueError('Mijoz nofaol — nasiya berib bo\'lmaydi')
             if not customer.allow_debt:
                 raise ValueError('Ushbu mijozga nasiya taqiqlangan')
-            pending_debt = Decimal(str(data.get('debt_amount', data.get('debtAmount', 0))))
-            if settings.limit_block_sales and customer.current_debt + pending_debt > customer.debt_limit:
+            if settings.limit_block_sales and customer.current_debt + debt_amount > customer.debt_limit:
                 raise ValueError('Nasiya limiti oshib ketdi')
 
     receipt_no = next_receipt_no()
     sale = Sale.objects.create(
         receipt_no=receipt_no,
-        date_time=data.get('date_time') or timezone.now(),
+        date_time=timezone.now(),
         seller=user,
         customer=customer,
-        total_amount=data['total_amount'],
-        discount=data.get('discount', 0),
-        final_amount=data['final_amount'],
-        payment_type=data['payment_type'],
-        cash_paid=data.get('cash_paid', 0),
-        debt_amount=data.get('debt_amount', 0),
-        debt_due_date=data.get('debt_due_date'),
+        total_amount=subtotal,
+        discount=discount,
+        final_amount=final_amount,
+        payment_type=payment_type,
+        cash_paid=cash_paid,
+        debt_amount=debt_amount,
+        debt_due_date=debt_due_date,
     )
 
-    for item in data['items']:
-        product = Product.objects.select_for_update().get(pk=item['productId'])
-        qty = Decimal(str(item['quantity']))
-        if product.stock < qty:
-            raise ValueError(f"{product.name} uchun omborda yetarli qoldiq yo'q")
-
+    for line in built_items:
+        product = line['product']
+        qty = line['quantity']
         product.stock -= qty
         product.save(update_fields=['stock', 'updated_at'])
 
         SaleItem.objects.create(
             sale=sale,
             product=product,
-            product_name=item.get('productName') or product.name,
+            product_name=line['product_name'],
             quantity=qty,
-            price=item['price'],
-            total=item['total'],
+            price=line['price'],
+            total=line['total'],
         )
 
         InventoryMovement.objects.create(

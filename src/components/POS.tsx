@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, Customer, Sale, User, StoreSettings, SaleItem } from '../types';
+import { Product, Category, Customer, Sale, User, StoreSettings, SaleItem } from '../types';
 import { 
   Search, 
   Scan, 
@@ -23,6 +23,7 @@ import {
 
 interface POSProps {
   products: Product[];
+  categories: Category[];
   customers: Customer[];
   sales: Sale[];
   currentUser: User;
@@ -34,7 +35,8 @@ interface POSProps {
 }
 
 export default function POS({ 
-  products, 
+  products,
+  categories,
   customers, 
   sales, 
   currentUser, 
@@ -80,21 +82,17 @@ export default function POS({
     return new Intl.NumberFormat('uz-UZ').format(value) + " so'm";
   };
 
-  // Categories list
-  const categories = useMemo(() => {
+  const categoryFilters = useMemo(() => {
     const cats = new Set(products.map(p => p.categoryId));
     return ['all', ...Array.from(cats)];
   }, [products]);
 
-  // Category name mapper
-  const getCategoryName = (catId: string) => {
-    if (catId === 'cat-1') return 'Ichimliklar';
-    if (catId === 'cat-2') return 'Oziq-ovqat';
-    if (catId === 'cat-3') return 'Shirinliklar';
-    if (catId === 'cat-4') return 'Sut mahsulotlari';
-    if (catId === 'cat-5') return 'Meva va Sabzavotlar';
-    return 'Boshqa';
-  };
+  const categoryNameById = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.id, c.name])),
+    [categories],
+  );
+
+  const getCategoryName = (catId: string) => categoryNameById[catId] || 'Boshqa';
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
@@ -542,7 +540,7 @@ export default function POS({
 
           {/* Categories Horizontal filters */}
           <div className="flex bg-white p-2 rounded-xl border border-slate-200 shadow-sm space-x-1 overflow-x-auto scrollbar-none">
-            {categories.map((cat) => (
+            {categoryFilters.map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}

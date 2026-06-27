@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: pos
       POSTGRES_USER: pos
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD talab qilinadi}
     volumes:
       - pos_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -35,6 +35,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health/')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
   pos_postgres_data:

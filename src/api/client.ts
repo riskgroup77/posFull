@@ -33,7 +33,7 @@ async function refreshAccessToken(): Promise<boolean> {
     });
     if (!res.ok) return false;
     const data = await res.json();
-    setTokens(data.access);
+    setTokens(data.access, data.refresh);
     return true;
   } catch {
     return false;
@@ -66,7 +66,8 @@ export async function apiRequest<T>(
     let message = `HTTP ${res.status}`;
     try {
       const err = await res.json();
-      message = err.detail || err.message || JSON.stringify(err);
+      const detail = err.detail;
+      message = typeof detail === 'string' ? detail : (Array.isArray(detail) ? detail.join(', ') : `HTTP ${res.status}`);
     } catch {
       message = await res.text();
     }

@@ -14,9 +14,11 @@ from .models import (
     InventoryMovement,
     Product,
     Sale,
+    SaleItem,
     StoreSettings,
 )
 from .permissions import IsActiveUser, IsAdmin, IsAdminOrManager, IsNotSellerOnlyWrite
+from .throttles import LoginRateThrottle
 from .serializers import (
     BulkImportSerializer,
     CategorySerializer,
@@ -40,8 +42,17 @@ from . import services
 User = get_user_model()
 
 
+class HealthView(APIView):
+    permission_classes = [AllowAny]
+    throttle_classes = []
+
+    def get(self, request):
+        return Response({'status': 'ok'})
+
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
@@ -50,12 +61,9 @@ class LoginView(APIView):
         password = serializer.validated_data['password']
 
         user = User.objects.filter(email=email).first()
-        if not user or user.account_status != User.STATUS_ACTIVE:
-            return Response({'detail': 'Foydalanuvchi topilmadi yoki bloklangan'}, status=status.HTTP_401_UNAUTHORIZED)
-
-        auth_user = authenticate(request, username=user.username, password=password)
-        if not auth_user:
-            return Response({'detail': 'Noto\'g\'ri parol'}, status=status.HTTP_401_UNAUTHORIZED)
+        auth_user = authenticate(request, username=user.username, password=password) if user else None
+        if not auth_user or user.account_status != User.STATUS_ACTIVE:
+            return Response({'detail': 'Email yoki parol noto\'g\'ri'}, status=status.HTTP_401_UNAUTHORIZED)
 
         refresh = RefreshToken.for_user(auth_user)
         return Response({
@@ -79,10 +87,16 @@ class BootstrapView(APIView):
             'categories': CategorySerializer(Category.objects.all(), many=True).data,
             'products': ProductSerializer(Product.objects.select_related('category').all(), many=True).data,
             'customers': CustomerSerializer(Customer.objects.all(), many=True).data,
-            'sales': SaleSerializer(Sale.objects.select_related('seller', 'customer').prefetch_related('items').all()[:500], many=True).data,
+            'sales': SaleSerializer(
+                Sale.objects.select_related('seller', 'customer').prefetch_related('items').order_by('-date_time'),
+                many=True,
+            ).data,
             'debts': DebtSerializer(Debt.objects.select_related('customer', 'sale').all(), many=True).data,
             'debtPayments': DebtPaymentSerializer(DebtPayment.objects.select_related('customer').all(), many=True).data,
-            'movements': InventoryMovementSerializer(InventoryMovement.objects.select_related('user', 'product').all()[:500], many=True).data,
+            'movements': InventoryMovementSerializer(
+                InventoryMovement.objects.select_related('user', 'product').order_by('-date_time'),
+                many=True,
+            ).data,
             'settings': StoreSettingsSerializer(StoreSettings.get_solo()).data,
         }
         if user.role == User.ROLE_ADMIN:
@@ -130,8 +144,8 @@ class ProductViewSet(viewsets.ModelViewSet):
                 serializer.validated_data['products'],
                 serializer.validated_data['duplicateAction'],
             )
-        except Exception as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({'detail': 'Import jarayonida xatolik yuz berdi'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(ProductSerializer(products, many=True).data, status=status.HTTP_201_CREATED)
 
 
@@ -260,6 +274,7 @@ class DebtPaymentViewSet(viewsets.ReadOnlyModelViewSet):
 class InventoryMovementViewSet(viewsets.ModelViewSet):
     queryset = InventoryMovement.objects.select_related('user', 'product').all()
     permission_classes = [IsActiveUser, IsNotSellerOnlyWrite]
+    http_method_names = ['get', 'post', 'head', 'options']
 
     def get_serializer_class(self):
         if self.action == 'create':

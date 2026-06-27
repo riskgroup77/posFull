@@ -73,10 +73,7 @@ def main():
 
     run(ssh, f'cd {APP_DIR} && export $(grep -v "^#" .env.deploy | xargs) && docker compose -f docker-compose.server.yml up -d --build', timeout=900)
 
-    # Birinchi deployda foydalanuvchilar
-    out, _, _ = run(ssh, f'cd {APP_DIR} && docker compose -f docker-compose.server.yml exec -T backend python manage.py shell -c "from django.contrib.auth import get_user_model; print(get_user_model().objects.count())"', check=False, timeout=120)
-    if out.strip() == '0':
-        run(ssh, f'cd {APP_DIR} && docker compose -f docker-compose.server.yml exec -T backend python manage.py reset_minimal', timeout=120)
+    # Foydalanuvchilar qo'lda: python manage.py reset_minimal (POS_SETUP_PASSWORD bilan)
 
     # Frontend build
     run(ssh, f'cd {APP_DIR} && npm ci && npm run build', timeout=900)

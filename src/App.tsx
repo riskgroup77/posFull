@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   User,
-  UserRole,
   Product,
   Category,
   Customer,
@@ -47,6 +46,7 @@ import SettingsComponent from './components/Settings';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    if (!localStorage.getItem('pos_access_token')) return null;
     const saved = localStorage.getItem('pos_current_user');
     return saved ? JSON.parse(saved) : null;
   });
@@ -85,6 +85,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!localStorage.getItem('pos_access_token')) {
+      setCurrentUser(null);
+      localStorage.removeItem('pos_current_user');
+    }
+  }, []);
+
+  useEffect(() => {
     if (currentUser) {
       localStorage.setItem('pos_current_user', JSON.stringify(currentUser));
     } else {
@@ -104,20 +111,6 @@ export default function App() {
       });
     }
   }, [currentUser, loadBootstrap]);
-
-  useEffect(() => {
-    const handleDemoSwitchRole = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const targetRole = customEvent.detail as UserRole;
-      const matchingUser = users.find((u) => u.role === targetRole && u.status === 'active');
-      if (matchingUser) {
-        setCurrentUser(matchingUser);
-        setActiveTab(targetRole === UserRole.SELLER ? 'pos' : 'dashboard');
-      }
-    };
-    window.addEventListener('demo-switch-role', handleDemoSwitchRole);
-    return () => window.removeEventListener('demo-switch-role', handleDemoSwitchRole);
-  }, [users]);
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
@@ -382,6 +375,7 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <Dashboard
               products={products}
+              categories={categories}
               customers={customers}
               sales={sales}
               debts={debts}
@@ -395,6 +389,7 @@ export default function App() {
           {activeTab === 'pos' && (
             <POS
               products={products.filter((p) => p.status === 'active')}
+              categories={categories}
               customers={customers.filter((c) => c.status === 'active')}
               sales={sales}
               currentUser={currentUser}

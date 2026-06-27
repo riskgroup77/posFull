@@ -8,6 +8,7 @@ from .views import (
     CustomerViewSet,
     DebtPaymentViewSet,
     DebtViewSet,
+    HealthView,
     InventoryMovementViewSet,
     LoginView,
     MeView,
@@ -31,6 +32,7 @@ router.register('debt-payments', DebtPaymentViewSet, basename='debt-payments')
 router.register('movements', InventoryMovementViewSet, basename='movements')
 
 urlpatterns = [
+    path('health/', HealthView.as_view(), name='health'),
     path('auth/login/', LoginView.as_view(), name='auth-login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='auth-refresh'),
     path('auth/me/', MeView.as_view(), name='auth-me'),

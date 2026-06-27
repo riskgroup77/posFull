@@ -29,6 +29,12 @@ backend/**/__pycache__/
 
 .env.deploy
 
+# Deploy skriptlari — server parollari bu yerga kiritilmasin
+scripts/server_probe.py
+scripts/server_probe2.py
+scripts/fix_users.py
+scripts/check_deploy.py
+
 .idea/
 .vscode/
 *.swp

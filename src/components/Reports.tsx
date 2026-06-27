@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Sale, Product, Customer, DebtPayment, User } from '../types';
-import { 
-  FileText, 
+import { toDateStr, daysAgo } from '../utils/dates';
+import {
+  FileText,
   TrendingUp, 
   Coins, 
   Package, 
@@ -41,8 +42,8 @@ export default function Reports({ sales, products, customers, debtPayments, curr
   const [reportType, setReportType] = useState<'sales' | 'finance' | 'warehouse' | 'customers'>('sales');
   
   // Custom date ranges
-  const [startDate, setStartDate] = useState('2026-06-20');
-  const [endDate, setEndDate] = useState('2026-06-26');
+  const [startDate, setStartDate] = useState(() => daysAgo(6));
+  const [endDate, setEndDate] = useState(() => toDateStr());
 
   // Currency utility
   const formatMoney = (value: number) => {

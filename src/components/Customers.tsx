@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Customer, Debt, DebtPayment, User, StoreSettings, Sale } from '../types';
+import { toDateStr } from '../utils/dates';
 import { 
   Users, 
   UserPlus, 
@@ -523,7 +524,7 @@ export default function Customers({
                   </span>
                   <div className="max-h-32 overflow-y-auto space-y-1 bg-slate-50 p-1.5 border rounded-lg">
                     {customerDebts.filter(d => d.status === 'pending').map((d) => {
-                      const isOverdue = d.dueDate ? new Date(d.dueDate) < new Date('2026-06-26') : false;
+                      const isOverdue = d.dueDate ? new Date(d.dueDate) < new Date(toDateStr()) : false;
                       return (
                         <div key={d.id} className="flex justify-between items-center py-1 border-b border-slate-200/50 text-[10px]">
                           <div>
