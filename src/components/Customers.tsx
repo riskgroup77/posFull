@@ -219,7 +219,7 @@ export default function Customers({
   }, [customers]);
 
   return (
-    <div className="w-full max-w-full py-6 font-sans space-y-6 select-none">
+    <div className="pos-page">
       
       {/* Print styles for Payment slip */}
       <style>{`
@@ -247,15 +247,17 @@ export default function Customers({
       `}</style>
 
       {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 border-b border-slate-200 pb-4 no-print">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
-            <Users className="h-6 w-6 text-blue-600" />
-            <span>Mijozlar Bazasi & Nasiya Daftari</span>
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Mijozlar hisob-kitoblari, nasiya qarzlarini qabul qilish va qarz limitlari boshqaruvi.
-          </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 no-print">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 shrink-0">
+            <Users className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="pos-page-title">Mijozlar Bazasi & Nasiya Daftari</h2>
+            <p className="pos-page-subtitle">
+              Mijozlar hisob-kitoblari, nasiya qarzlarini qabul qilish va limitlar.
+            </p>
+          </div>
         </div>
 
         <button

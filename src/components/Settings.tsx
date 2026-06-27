@@ -130,14 +130,16 @@ export default function SettingsComponent({
   };
 
   return (
-    <div className="w-full max-w-full py-6 font-sans space-y-6 select-none">
+    <div className="pos-page">
       
       {/* Title */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 pb-4">
-        <Settings className="h-6 w-6 text-blue-600" />
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100">
+          <Settings className="h-5 w-5 text-blue-600" />
+        </div>
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Tizim & Do'kon Sozlamalari</h1>
-          <p className="text-slate-500 text-sm mt-0.5">Xodimlar ruxsatlari, soliq stavkalari, chek sozlamalari va ma'lumotlar bazasi boshqaruvi.</p>
+          <h2 className="pos-page-title">Tizim & Do'kon Sozlamalari</h2>
+          <p className="pos-page-subtitle">Xodimlar, ruxsatlar, chek sozlamalari va ma'lumotlar bazasi.</p>
         </div>
       </div>
 

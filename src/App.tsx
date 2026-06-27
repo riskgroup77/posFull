@@ -12,7 +12,7 @@ import {
   StoreSettings,
 } from './types';
 import { DEFAULT_SETTINGS } from './data';
-import { Store } from 'lucide-react';
+import { Bell, Plus } from 'lucide-react';
 import {
   fetchBootstrap,
   logout as apiLogout,
@@ -36,6 +36,7 @@ import {
 import { ApiError } from './api/client';
 
 import Navbar from './components/Navbar';
+import AppFooter from './components/AppFooter';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import POS from './components/POS';
@@ -314,8 +315,15 @@ export default function App() {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const pageTitle =
+    activeTab === 'dashboard' ? 'Bosh sahifa' :
+    activeTab === 'pos' ? 'Sotuv (POS)' :
+    activeTab === 'warehouse' ? 'Ombor' :
+    activeTab === 'customers' ? 'Mijozlar va Qarzlar' :
+    activeTab === 'reports' ? 'Hisobotlar' : 'Sozlamalar';
+
   return (
-    <div className="h-screen w-screen bg-[#F8FAFC] font-sans text-[#1E293B] flex flex-col md:flex-row overflow-hidden">
+    <div className="h-screen w-screen bg-slate-50 font-sans text-slate-800 flex flex-col md:flex-row overflow-hidden">
       <Navbar
         currentUser={currentUser}
         settings={settings}
@@ -324,42 +332,53 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 md:px-8 shrink-0">
-          <div className="flex items-center gap-4">
-            <h1 className="text-base md:text-lg font-bold text-slate-800 tracking-tight capitalize">
-              {activeTab === 'dashboard' ? 'Bosh sahifa' :
-               activeTab === 'pos' ? 'Sotuv (POS)' :
-               activeTab === 'warehouse' ? 'Ombor' :
-               activeTab === 'customers' ? 'Mijozlar va Qarzlar' :
-               activeTab === 'reports' ? 'Hisobotlar' : 'Sozlamalar'}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden min-w-0">
+        <header className="bg-white border-b border-slate-200/80 flex items-center justify-between px-4 md:px-8 py-4 shrink-0 shadow-sm">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider mb-0.5">
+              {pageTitle}
+            </p>
+            <h1 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight truncate">
+              Xush kelibsiz, {currentUser.name}!
             </h1>
-            <div className="hidden sm:flex items-center space-x-1 text-xs text-blue-600 bg-blue-50 rounded-full px-2.5 py-0.5 border border-blue-100">
-              <span className={`h-1.5 w-1.5 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-blue-500'}`}></span>
-              <span className="font-semibold text-[10px] tracking-wide uppercase">
-                {loading ? 'Yuklanmoqda...' : 'API Ulangan'}
-              </span>
-            </div>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-6">
+          <div className="flex items-center gap-2 md:gap-4 shrink-0">
             {activeTab !== 'pos' && (
               <button
                 onClick={() => setActiveTab('pos')}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-semibold shadow-sm transition-all cursor-pointer border-none"
+                className="pos-btn-primary text-xs md:text-sm px-3 md:px-4 py-2"
               >
-                <Store className="w-4 h-4" />
-                Yangi sotuv
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Yangi sotuv</span>
               </button>
             )}
-            <div className="h-8 w-px bg-slate-200"></div>
-            <p className="text-xs md:text-sm font-semibold text-slate-500">
-              {new Date().toLocaleDateString('uz-UZ', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
+            <button
+              type="button"
+              className="relative p-2 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer bg-white"
+              aria-label="Bildirishnomalar"
+            >
+              <Bell className="w-4 h-4" />
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+            </button>
+            <div className="hidden lg:block text-right">
+              <p className="text-sm font-bold text-slate-800 tabular-nums">
+                {new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              <p className="text-[11px] text-slate-400 font-medium">
+                {new Date().toLocaleDateString('uz-UZ', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </p>
+            </div>
+            <div className={`hidden sm:flex items-center gap-1.5 text-[10px] font-semibold rounded-full px-2.5 py-1 border ${
+              loading ? 'text-amber-600 bg-amber-50 border-amber-100' : 'text-emerald-600 bg-emerald-50 border-emerald-100'
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+              {loading ? 'Yuklanmoqda' : 'Online'}
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto w-full max-w-full">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-auto w-full max-w-full min-h-0">
           {activeTab === 'dashboard' && (
             <Dashboard
               products={products}
@@ -441,20 +460,7 @@ export default function App() {
           )}
         </main>
 
-        <footer className="h-12 bg-white border-t border-slate-200 px-6 md:px-8 flex items-center justify-between text-[11px] md:text-xs text-slate-500 shrink-0 select-none">
-          <div className="flex items-center gap-3 md:gap-4">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-              Tizim faol
-            </span>
-            <span className="hidden sm:inline">Filial: Asosiy do'kon</span>
-            <span>Valyuta: {settings.currency || "so'm"}</span>
-          </div>
-          <div className="flex gap-4">
-            <span>Versiya 1.0</span>
-            <span className="hidden md:inline">Xodim: {currentUser.name} ({currentUser.role})</span>
-          </div>
-        </footer>
+        <AppFooter />
       </div>
     </div>
   );

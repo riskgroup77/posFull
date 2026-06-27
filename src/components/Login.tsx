@@ -3,6 +3,7 @@ import { User } from '../types';
 import { login } from '../api';
 import { ApiError } from '../api/client';
 import { Lock, Mail, Store, AlertCircle } from 'lucide-react';
+import AppFooter from './AppFooter';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -48,84 +49,91 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center items-center space-x-3 text-blue-600">
-          <Store className="h-12 w-12" />
-          <span className="text-3xl font-extrabold tracking-tight text-slate-900">Nukus POS</span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 flex flex-col font-sans">
+      <div className="flex-1 flex flex-col justify-center py-10 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="flex justify-center items-center gap-3">
+            <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-600/25">
+              <Store className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <span className="text-2xl font-extrabold tracking-tight text-slate-900 block leading-tight">Nukus POS</span>
+              <span className="text-xs text-slate-500 font-medium">Savdo va Ombor Boshqaruvi</span>
+            </div>
+          </div>
+          <h2 className="mt-8 text-center text-xl font-bold tracking-tight text-slate-800">
+            Tizimga kirish
+          </h2>
+          <p className="mt-1.5 text-center text-sm text-slate-500">
+            Hisobingizga kiring va ishni boshlang
+          </p>
         </div>
-        <h2 className="mt-6 text-center text-2xl font-bold tracking-tight text-slate-800">
-          Tizimga kirish
-        </h2>
-        <p className="mt-2 text-center text-sm text-slate-500">
-          Savdo va Ombor Boshqaruv Tizimi
-        </p>
-      </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-md sm:rounded-xl sm:px-10 border border-slate-100">
-          {error && (
-            <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded-md flex items-start space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-              <div className="text-sm text-red-700 font-medium">{error}</div>
-            </div>
-          )}
-
-          <form className="space-y-6" onSubmit={handleLogin}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700">
-                E-pochta manzili
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  id="email"
-                  name="email"
-                  type="text"
-                  required
-                  placeholder="seller@pos.uz"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-slate-400"
-                />
+        <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-white/90 backdrop-blur-sm py-8 px-5 shadow-xl shadow-slate-200/50 sm:rounded-2xl sm:px-10 border border-white/80">
+            {error && (
+              <div className="mb-5 bg-red-50 border border-red-100 p-4 rounded-xl flex items-start gap-2.5">
+                <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-red-700 font-medium">{error}</div>
               </div>
-            </div>
+            )}
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700">
-                Parol
-              </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
+            <form className="space-y-5" onSubmit={handleLogin}>
+              <div>
+                <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  E-pochta manzili
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="text"
+                    required
+                    placeholder="seller@pos.uz"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pos-input pl-11"
+                  />
                 </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  placeholder="••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm placeholder-slate-400"
-                />
               </div>
-            </div>
 
-            <div>
+              <div>
+                <label htmlFor="password" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Parol
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                    <Lock className="h-5 w-5 text-slate-400" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    placeholder="••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pos-input pl-11"
+                  />
+                </div>
+              </div>
+
               <button
                 type="submit"
                 disabled={isLocked || loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50"
+                className="w-full pos-btn-primary py-2.5 text-sm disabled:opacity-50"
               >
                 {loading ? 'Kirish...' : 'Kirish'}
               </button>
-            </div>
-          </form>
+            </form>
+          </div>
         </div>
       </div>
+
+      <AppFooter />
     </div>
   );
 }

@@ -229,16 +229,16 @@ export default function Dashboard({
   }, [sales, products]);
 
   return (
-    <div className="w-full max-w-full py-8 font-sans space-y-8 select-none">
+    <div className="pos-page">
       
       {/* Header and Filter */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
+          <h2 className="pos-page-title flex items-center gap-2">
             <span>Boshqaruv Paneli</span>
             <Sparkles className="h-5 w-5 text-blue-500" />
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
+          </h2>
+          <p className="pos-page-subtitle">
             Do'koningizning real vaqtdagi savdo va ombor ko'rsatkichlari.
           </p>
         </div>
@@ -324,7 +324,7 @@ export default function Dashboard({
       {/* Main Stats Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Today Sales */}
-        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+        <div className="pos-card-hover p-5 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Bugungi Sotuv</p>
             <h3 className="text-xl font-extrabold text-slate-800">{formatMoney(stats.todaySalesSum)}</h3>
@@ -339,7 +339,7 @@ export default function Dashboard({
         </div>
 
         {/* Month Sales */}
-        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+        <div className="pos-card-hover p-5 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Oylik Sotuv (Iyun)</p>
             <h3 className="text-xl font-extrabold text-slate-800">{formatMoney(stats.monthSalesSum)}</h3>
@@ -351,7 +351,7 @@ export default function Dashboard({
         </div>
 
         {/* Total Outstanding Debt */}
-        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+        <div className="pos-card-hover p-5 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Jami Nasiya (Qarz)</p>
             <h3 className="text-xl font-extrabold text-red-600">{formatMoney(stats.totalDebt)}</h3>
@@ -363,7 +363,7 @@ export default function Dashboard({
         </div>
 
         {/* Low Stock Alerts */}
-        <div className="bg-white border border-slate-200 p-5 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
+        <div className="pos-card-hover p-5 flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Ombor Holati</p>
             <h3 className="text-xl font-extrabold text-slate-800">{stats.activeProductsCount} xil tovar</h3>

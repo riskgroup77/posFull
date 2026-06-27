@@ -454,7 +454,7 @@ export default function POS({
   };
 
   return (
-    <div className="w-full max-w-full py-6 font-sans select-none print:bg-white">
+    <div className="pos-page select-none print:bg-white">
       
       {/* Print styles override */}
       <style>{`

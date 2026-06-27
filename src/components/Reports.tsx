@@ -438,18 +438,20 @@ export default function Reports({ sales, products, customers, debtPayments, curr
   }, [customers]);
 
   return (
-    <div className="w-full max-w-full py-6 font-sans space-y-6 select-none print:bg-white">
+    <div className="pos-page print:bg-white">
       
       {/* Header and Filter Inputs */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 border-b border-slate-200 pb-4 no-print">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
-            <FileText className="h-6 w-6 text-blue-600" />
-            <span>Hisobotlar & Tahlillar</span>
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Korxonangizning davriy daromadi, tovarlar aylanmasi va moliyaviy foydasini chuqur tahlil qiling.
-          </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 no-print">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 shrink-0">
+            <FileText className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="pos-page-title">Hisobotlar & Tahlillar</h2>
+            <p className="pos-page-subtitle">
+              Davriy daromad, tovarlar aylanmasi va moliyaviy foyda tahlili.
+            </p>
+          </div>
         </div>
 
         {/* Custom date selectors */}

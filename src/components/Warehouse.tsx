@@ -740,18 +740,20 @@ export default function Warehouse({
   };
 
   return (
-    <div className="w-full max-w-full py-6 font-sans space-y-6 select-none">
+    <div className="pos-page">
       
       {/* Title & Actions */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center space-x-2">
-            <Package className="h-6 w-6 text-blue-600" />
-            <span>Ombor & Inventarizatsiya</span>
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Mahsulotlar zaxiralarini kuzatish, kirim-chiqim kiritish va tahlil.
-          </p>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100 shrink-0">
+            <Package className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h2 className="pos-page-title">Ombor & Inventarizatsiya</h2>
+            <p className="pos-page-subtitle">
+              Mahsulotlar zaxiralarini kuzatish, kirim-chiqim kiritish va tahlil.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
