@@ -29,11 +29,11 @@ backend/**/__pycache__/
 
 .env.deploy
 
-# Deploy skriptlari — server parollari bu yerga kiritilmasin
-scripts/server_probe.py
-scripts/server_probe2.py
-scripts/fix_users.py
-scripts/check_deploy.py
+# Vaqtinchalik diagnostika skriptlari (parol kiritilmasin)
+scripts/verify_health.py
+scripts/check_nginx.py
+scripts/check_ssl.py
+scripts/check_ssl2.py
 
 .idea/
 .vscode/
