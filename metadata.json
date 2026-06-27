@@ -1,0 +1,6 @@
+{
+  "name": "POS Tizimi",
+  "description": "Savdo va Ombor Boshqaruv Tizimi (O'zbek tili)",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

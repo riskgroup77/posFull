@@ -1,0 +1,38 @@
+# Production — API server (posapi.devflix.uz)
+# Serverda: cp backend/.env.production.example backend/.env va tahrirlang
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pos
+      POSTGRES_USER: pos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pospass}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos -d pos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgres://pos:${POSTGRES_PASSWORD:-pospass}@db:5432/pos
+      DJANGO_DEBUG: "False"
+      DJANGO_ALLOWED_HOSTS: posapi.devflix.uz,localhost
+      CORS_ALLOWED_ORIGINS: https://pos.devflix.uz
+      CSRF_TRUSTED_ORIGINS: https://pos.devflix.uz,https://posapi.devflix.uz
+      SEED_DATABASE: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:

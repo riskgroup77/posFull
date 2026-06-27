@@ -1,0 +1,10 @@
+# Production — Frontend server (pos.devflix.uz)
+# Build vaqtida .env.production avtomatik ishlatiladi
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
