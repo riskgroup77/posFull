@@ -150,7 +150,17 @@ export default function Production({
     [productionOrders, selectedOrderId],
   );
 
-  const activeProducts = products.filter((p) => p.status === 'active' && p.stock > 0);
+  const partProducts = useMemo(
+    () => products
+      .filter((p) => p.status === 'active')
+      .sort((a, b) => a.name.localeCompare(b.name, 'uz')),
+    [products],
+  );
+
+  const partProductsWithStock = useMemo(
+    () => partProducts.filter((p) => p.stock > 0),
+    [partProducts],
+  );
 
   const visibleOrders = useMemo(
     () => productionOrders.filter((o) => o.status !== 'cancelled'),
@@ -321,6 +331,11 @@ export default function Production({
     void run(async () => {
       if (!selectedOrder) throw new Error('Buyurtma tanlanmagan');
       if (!partProductId) throw new Error('Qism tanlang');
+      const partProduct = products.find((p) => p.id === partProductId);
+      if (!partProduct) throw new Error('Mahsulot topilmadi');
+      if (partProduct.stock < partQty) {
+        throw new Error(`${partProduct.name} uchun omborda yetarli qoldiq yo'q (mavjud: ${partProduct.stock})`);
+      }
       if (partQty <= 0) throw new Error('Miqdor noto\'g\'ri');
       const updated = await addPartToProductionOrder(selectedOrder.id, partProductId, partQty);
       onPatchData?.({
@@ -672,13 +687,30 @@ export default function Production({
                           value={partProductId}
                           onChange={(e) => setPartProductId(e.target.value)}
                         >
-                          <option value="">Tanlang...</option>
-                          {activeProducts.map((p) => (
-                            <option key={p.id} value={p.id}>
+                          <option value="">
+                            {partProducts.length === 0
+                              ? 'Omborda mahsulot yo\'q'
+                              : partProductsWithStock.length === 0
+                                ? 'Qoldiq yo\'q — avval omborga kiriting'
+                                : 'Tanlang...'}
+                          </option>
+                          {partProducts.map((p) => (
+                            <option key={p.id} value={p.id} disabled={p.stock <= 0}>
                               {p.name} (qoldiq: {p.stock})
+                              {p.stock <= 0 ? ' — tugagan' : ''}
                             </option>
                           ))}
                         </select>
+                        {partProducts.length === 0 && (
+                          <p className="text-xs text-amber-600 mt-1.5">
+                            Avval <strong>Ombor</strong> bo&apos;limida kategoriya va mahsulot qo&apos;shing, keyin zaxira kiriting.
+                          </p>
+                        )}
+                        {partProducts.length > 0 && partProductsWithStock.length === 0 && (
+                          <p className="text-xs text-amber-600 mt-1.5">
+                            Mahsulotlar mavjud, lekin qoldiq 0. <strong>Ombor → Omborga kiritish</strong> orqali zaxira qo&apos;shing.
+                          </p>
+                        )}
                       </div>
                       <div className="w-24">
                         <label className="text-xs font-semibold text-slate-500">Miqdor</label>

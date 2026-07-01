@@ -150,6 +150,12 @@ export default function App() {
     }
   }, [currentUser, loadBootstrap]);
 
+  useEffect(() => {
+    if (currentUser && activeTab === 'production') {
+      refreshProductionData({ silent: true }).catch(() => {});
+    }
+  }, [activeTab, currentUser, refreshProductionData]);
+
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
   };
