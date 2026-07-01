@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Product, Category, InventoryMovement, User, StoreSettings } from '../types';
+import BarcodeLabel, { BarcodeLabelHandle } from './BarcodeLabel';
 import {
   downloadImportExcelTemplate,
   downloadImportJsonTemplate,
@@ -16,7 +17,7 @@ import {
   ArrowDown, 
   ClipboardCheck, 
   AlertTriangle, 
-  QrCode, 
+  Barcode, 
   Edit, 
   Trash2, 
   Download, 
@@ -106,8 +107,9 @@ export default function Warehouse({
     }
   }, [selectedProductId, products]);
 
-  // Selected QR Code modal
-  const [selectedQRProduct, setSelectedQRProduct] = useState<Product | null>(null);
+  // Selected barcode modal
+  const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
+  const barcodeLabelRef = useRef<BarcodeLabelHandle>(null);
 
   // Reconciliation state
   const [reconcilingProductId, setReconcilingProductId] = useState<string | null>(null);
@@ -979,11 +981,11 @@ export default function Warehouse({
                         <td className="px-6 py-3 text-center">
                           <div className="flex items-center justify-center space-x-1.5">
                             <button
-                              onClick={() => setSelectedQRProduct(p)}
+                              onClick={() => setSelectedBarcodeProduct(p)}
                               className="p-1 text-slate-500 hover:text-blue-600 border border-slate-100 hover:border-blue-200 bg-white rounded cursor-pointer"
-                              title="QR kod ko'rish"
+                              title="Shtrix-kod ko'rish"
                             >
-                              <QrCode className="h-4 w-4" />
+                              <Barcode className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => handleOpenProductModal(p)}
@@ -1357,6 +1359,9 @@ export default function Warehouse({
                     onChange={(e) => setProdBarcode(e.target.value)}
                     className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
+                  {prodBarcode.trim() && (
+                    <BarcodeLabel value={prodBarcode.trim()} className="mt-3" />
+                  )}
                 </div>
               </div>
 
@@ -1567,30 +1572,25 @@ export default function Warehouse({
         </div>
       )}
 
-      {/* MODAL 7: VIEW & DOWNLOAD & PRINT QR CODE */}
-      {selectedQRProduct && (
+      {/* MODAL 7: VIEW & DOWNLOAD & PRINT BARCODE */}
+      {selectedBarcodeProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-2xl relative text-center">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative text-center" id="barcode-print-area">
             <button
-              onClick={() => setSelectedQRProduct(null)}
+              onClick={() => setSelectedBarcodeProduct(null)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <QrCode className="h-10 w-10 text-blue-600 mx-auto mb-2" />
-            <h4 className="text-sm font-black text-slate-800 leading-snug">{selectedQRProduct.name}</h4>
-            <p className="text-[10px] text-slate-400 mt-1 font-mono">{selectedQRProduct.barcode}</p>
+            <Barcode className="h-10 w-10 text-blue-600 mx-auto mb-2" />
+            <h4 className="text-sm font-black text-slate-800 leading-snug">{selectedBarcodeProduct.name}</h4>
 
-            {/* Generated QR Image using public QR API (super easy and reliable) */}
-            <div className="w-48 h-48 mx-auto my-4 border p-2 rounded-lg bg-white flex items-center justify-center">
-              <img 
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(selectedQRProduct.qrCodeData)}`} 
-                alt="QR Code" 
-                className="w-full h-full object-contain"
-                referrerPolicy="no-referrer"
-              />
-            </div>
+            <BarcodeLabel
+              ref={barcodeLabelRef}
+              value={selectedBarcodeProduct.barcode}
+              className="w-full my-4"
+            />
 
             <div className="flex gap-2">
               <button
@@ -1601,15 +1601,17 @@ export default function Warehouse({
                 <span>Chop etish</span>
               </button>
 
-              <a
-                href={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(selectedQRProduct.qrCodeData)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center space-x-1"
+              <button
+                type="button"
+                onClick={() => {
+                  const safeName = selectedBarcodeProduct.name.replace(/[^\w\s-]/g, '').trim().slice(0, 40);
+                  barcodeLabelRef.current?.downloadPng(`barcode-${safeName || selectedBarcodeProduct.barcode}`);
+                }}
+                className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center space-x-1 border-none"
               >
                 <Download className="h-3.5 w-3.5" />
                 <span>Yuklash</span>
-              </a>
+              </button>
             </div>
           </div>
         </div>

@@ -545,7 +545,7 @@ export default function Dashboard({
 
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-1 text-slate-600">
             <span className="font-bold text-slate-700 block mb-1">Xodim eslatmasi:</span>
-            <p>1. QR skanerlash uchun kassa sahifasida kameraga ruxsat bering.</p>
+            <p>1. Shtrix-kod skanerini kassa sahifasida ulang yoki kodni qo'lda kiriting.</p>
             <p>2. Yangi sotuv kiritilganda ombor qoldiqlari avtomatik hisobdan chiqariladi.</p>
           </div>
         </div>

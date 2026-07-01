@@ -17,8 +17,7 @@ import {
   History, 
   RefreshCcw, 
   Check, 
-  AlertCircle,
-  Camera
+  AlertCircle
 } from 'lucide-react';
 
 interface POSProps {
@@ -99,8 +98,7 @@ export default function POS({
     return products.filter(p => {
       const matchCategory = selectedCategory === 'all' || p.categoryId === selectedCategory;
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          p.barcode.includes(searchQuery) ||
-                          p.qrCodeData.toLowerCase().includes(searchQuery.toLowerCase());
+                          p.barcode.includes(searchQuery);
       return matchCategory && matchSearch && p.status === 'active';
     });
   }, [products, selectedCategory, searchQuery]);
@@ -111,7 +109,7 @@ export default function POS({
     const code = barcodeInput.trim();
     if (!code) return;
 
-    const found = products.find(p => p.barcode === code || p.qrCodeData === code);
+    const found = products.find(p => p.barcode === code);
     if (found) {
       if (found.stock <= 0) {
         alert("Xato: Ushbu tovar omborda qolmagan!");
@@ -525,7 +523,7 @@ export default function POS({
                 title="Barcode skanerlash"
               >
                 <Scan className="h-5 w-5 text-blue-600" />
-                <span className="hidden sm:inline">QR Skaner</span>
+                <span className="hidden sm:inline">Shtrix-kod</span>
               </button>
 
               <button
@@ -1029,7 +1027,7 @@ ${settings.receiptFooter}
         </div>
       )}
 
-      {/* MODAL 2: CAMERA OR QR SCAN SIMULATOR */}
+      {/* MODAL 2: SHTIRIX-KOD SKANER */}
       {showScannerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
@@ -1041,8 +1039,8 @@ ${settings.receiptFooter}
             </button>
 
             <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2 mb-4">
-              <Camera className="h-5 w-5 text-blue-600" />
-              <span>QR va Barcode Skaner (Kamera API)</span>
+              <Scan className="h-5 w-5 text-blue-600" />
+              <span>Shtrix-kod skaner</span>
             </h3>
 
             {/* Video preview simulation */}
