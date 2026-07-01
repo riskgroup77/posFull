@@ -393,6 +393,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   phone: '+998 71 200-30-40',
   logoUrl: '',
   currency: 'so\'m',
+  usdRate: 12800,
   taxRateDefault: 12,
   receiptFooter: 'Xaridingiz uchun tashakkur! Yana keling!',
   receiptNoFormat: '000000',

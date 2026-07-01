@@ -120,6 +120,7 @@ export interface StoreSettings {
   phone: string;
   logoUrl?: string;
   currency: string;
+  usdRate: number;
   taxRateDefault: number;
   receiptFooter: string;
   receiptNoFormat: string;

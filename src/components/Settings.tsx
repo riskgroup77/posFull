@@ -45,6 +45,7 @@ export default function SettingsComponent({
   const [receiptFooter, setReceiptFooter] = useState(settings.receiptFooter || '');
   const [defaultLimit, setDefaultLimit] = useState(String(settings.defaultDebtLimit));
   const [minStockDefault, setMinStockDefault] = useState(String(settings.minStockThresholdDefault));
+  const [usdRate, setUsdRate] = useState(String(settings.usdRate || 12800));
 
   // Staff creation form state
   const [staffName, setStaffName] = useState('');
@@ -64,7 +65,8 @@ export default function SettingsComponent({
       taxRateDefault: parseFloat(taxRate) || 0,
       receiptFooter: receiptFooter.trim(),
       defaultDebtLimit: parseFloat(defaultLimit) || 0,
-      minStockThresholdDefault: parseFloat(minStockDefault) || 5
+      minStockThresholdDefault: parseFloat(minStockDefault) || 5,
+      usdRate: parseFloat(usdRate) || 12800,
     });
 
     alert("Tizim sozlamalari muvaffaqiyatli saqlandi!");
@@ -234,6 +236,28 @@ export default function SettingsComponent({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-slate-100 pt-3">
+                  {currentUser.role === 'admin' && (
+                    <div className="sm:col-span-3 bg-blue-50/60 border border-blue-100 rounded-xl p-4">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        1 USD = necha so'm? (valyuta kursi)
+                      </label>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          step={100}
+                          required
+                          value={usdRate}
+                          onChange={(e) => setUsdRate(e.target.value)}
+                          className="w-full sm:max-w-xs px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold"
+                          placeholder="12800"
+                        />
+                        <p className="text-[11px] text-slate-500">
+                          Masalan: 12 800 — barcha narxlar so'mda saqlanadi, USD faqat ko'rsatish uchun hisoblanadi.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-bold text-slate-600 mb-1">Soliq stavkasi (%) (VAT)</label>
                     <input

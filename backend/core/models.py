@@ -237,6 +237,12 @@ class StoreSettings(models.Model):
     phone = models.CharField(max_length=64, blank=True, default='')
     logo_url = models.URLField(blank=True, default='')
     currency = models.CharField(max_length=16, default="so'm")
+    usd_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=12800,
+        help_text="1 AQSh dollari = necha so'm",
+    )
     tax_rate_default = models.DecimalField(max_digits=6, decimal_places=2, default=12)
     receipt_footer = models.TextField(blank=True, default='Xaridingiz uchun tashakkur!')
     receipt_no_format = models.CharField(max_length=32, default='000000')

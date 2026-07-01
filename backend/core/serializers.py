@@ -316,11 +316,12 @@ class StoreSettingsSerializer(serializers.ModelSerializer):
     defaultDebtLimit = serializers.DecimalField(source='default_debt_limit', max_digits=14, decimal_places=2, required=False)
     limitBlockSales = serializers.BooleanField(source='limit_block_sales', required=False)
     mandatoryDebtDueDate = serializers.BooleanField(source='mandatory_debt_due_date', required=False)
+    usdRate = serializers.DecimalField(source='usd_rate', max_digits=14, decimal_places=2, required=False)
 
     class Meta:
         model = StoreSettings
         fields = [
-            'storeName', 'address', 'phone', 'logoUrl', 'currency',
+            'storeName', 'address', 'phone', 'logoUrl', 'currency', 'usdRate',
             'taxRateDefault', 'receiptFooter', 'receiptNoFormat', 'autoPrint',
             'minStockThresholdDefault', 'defaultDebtLimit', 'limitBlockSales',
             'mandatoryDebtDueDate',
@@ -334,6 +335,7 @@ class StoreSettingsSerializer(serializers.ModelSerializer):
             'phone': instance.phone,
             'logoUrl': instance.logo_url,
             'currency': instance.currency,
+            'usdRate': float(instance.usd_rate),
             'taxRateDefault': float(instance.tax_rate_default),
             'receiptFooter': instance.receipt_footer,
             'receiptNoFormat': instance.receipt_no_format,
@@ -356,6 +358,7 @@ class StoreSettingsSerializer(serializers.ModelSerializer):
             'default_debt_limit': 'defaultDebtLimit',
             'limit_block_sales': 'limitBlockSales',
             'mandatory_debt_due_date': 'mandatoryDebtDueDate',
+            'usd_rate': 'usdRate',
         }
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

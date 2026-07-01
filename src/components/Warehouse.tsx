@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Product, Category, InventoryMovement, User, StoreSettings } from '../types';
 import BarcodeLabel, { BarcodeLabelHandle } from './BarcodeLabel';
+import MoneyDisplay from './MoneyDisplay';
 import {
   downloadImportExcelTemplate,
   downloadImportJsonTemplate,
@@ -963,7 +964,15 @@ export default function Warehouse({
                       <td className="px-6 py-3 font-normal text-slate-500 hidden md:table-cell">{getCategoryName(p.categoryId)}</td>
                       <td className="px-6 py-3 font-mono text-[10px] text-slate-500 hidden lg:table-cell">{p.barcode}</td>
                       <td className="px-6 py-3 text-right text-slate-500 font-medium hidden md:table-cell">{formatMoney(p.supplyPrice)}</td>
-                      <td className="px-6 py-3 text-right text-slate-900 font-black">{formatMoney(p.salePrice)}</td>
+                      <td className="px-6 py-3 text-right text-slate-900 font-black">
+                        <MoneyDisplay
+                          amountUzs={p.salePrice}
+                          usdRate={settings.usdRate > 0 ? settings.usdRate : 12800}
+                          className="items-end"
+                          uzsClassName="text-sm font-black text-slate-900"
+                          usdClassName="text-[10px] text-emerald-600 font-semibold"
+                        />
+                      </td>
                       <td className="px-6 py-3 text-center">
                         <span className={`inline-block px-2.5 py-1 rounded text-xs font-bold leading-none ${
                           p.stock <= 0 ? 'bg-red-100 text-red-800' :

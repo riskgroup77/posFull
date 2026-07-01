@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import MoneyDisplay from './MoneyDisplay';
+import { formatUzs, formatUsd } from '../utils/currency';
 import { Product, Category, Customer, Sale, User, StoreSettings, SaleItem } from '../types';
 import { 
   Search, 
@@ -76,10 +77,9 @@ export default function POS({
     barcodeSearchRef.current?.focus();
   }, []);
 
-  // Format money
-  const formatMoney = (value: number) => {
-    return new Intl.NumberFormat('uz-UZ').format(value) + " so'm";
-  };
+  const usdRate = settings.usdRate > 0 ? settings.usdRate : 12800;
+
+  const formatMoney = (value: number) => formatUzs(value);
 
   const categoryFilters = useMemo(() => {
     const cats = new Set(products.map(p => p.categoryId));
@@ -609,9 +609,12 @@ export default function POS({
                       {prod.name}
                     </h5>
                     <div className="flex items-center justify-between pt-1.5">
-                      <span className="text-xs font-black text-slate-950">
-                        {formatMoney(prod.salePrice)}
-                      </span>
+                      <MoneyDisplay
+                        amountUzs={prod.salePrice}
+                        usdRate={usdRate}
+                        uzsClassName="text-xs font-black text-slate-950"
+                        usdClassName="text-[9px] text-emerald-600 font-bold"
+                      />
                       <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
                         isLowStock ? 'bg-red-50 text-red-700 border-red-100' : 'bg-slate-50 text-slate-500 border-slate-100'
                       }`}>
@@ -644,14 +647,19 @@ export default function POS({
         <div className="w-full lg:col-span-5 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col justify-between max-h-[600px] lg:max-h-[750px] overflow-hidden">
           
           {/* Cart Header */}
-          <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-            <h3 className="font-extrabold text-sm text-slate-800 flex items-center space-x-1.5">
-              <ShoppingBag className="h-5 w-5 text-blue-600" />
-              <span>Xarid Savati</span>
-              <span className="bg-blue-100 text-blue-800 font-black text-xs px-2 py-0.5 rounded-full">
-                {cart.reduce((s, i) => s + i.quantity, 0)} ta
-              </span>
-            </h3>
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 gap-2">
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-800 flex items-center space-x-1.5">
+                <ShoppingBag className="h-5 w-5 text-blue-600" />
+                <span>Xarid Savati</span>
+                <span className="bg-blue-100 text-blue-800 font-black text-xs px-2 py-0.5 rounded-full">
+                  {cart.reduce((s, i) => s + i.quantity, 0)} ta
+                </span>
+              </h3>
+              <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
+                1 USD = {new Intl.NumberFormat('uz-UZ').format(usdRate)} so'm
+              </p>
+            </div>
             {cart.length > 0 && (
               <button
                 onClick={clearCart}
@@ -671,7 +679,7 @@ export default function POS({
                   <h6 className="text-xs font-bold text-slate-800 leading-snug">{item.product.name}</h6>
                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                     <p className="text-[10px] text-slate-400 font-semibold">
-                      Donasi: {formatMoney(item.product.salePrice)}
+                      Donasi: <MoneyDisplay amountUzs={item.product.salePrice} usdRate={usdRate} inline showUsd usdClassName="text-[9px] text-emerald-600" uzsClassName="text-[10px] text-slate-500" />
                     </p>
                     {(item.product.shkaf || item.product.polka) && (
                       <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 flex items-center shrink-0">
@@ -699,10 +707,13 @@ export default function POS({
                     </button>
                   </div>
 
-                  <div className="text-right w-20">
-                    <span className="text-xs font-black text-slate-950">
-                      {formatMoney(item.product.salePrice * item.quantity)}
-                    </span>
+                  <div className="text-right w-24">
+                    <MoneyDisplay
+                      amountUzs={item.product.salePrice * item.quantity}
+                      usdRate={usdRate}
+                      uzsClassName="text-xs font-black text-slate-950"
+                      usdClassName="text-[9px] text-emerald-600 font-bold"
+                    />
                   </div>
 
                   <button
@@ -866,7 +877,9 @@ export default function POS({
               <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-500">Mijoz qarziga yoziladigan summa:</span>
-                  <span className="font-black text-amber-600 text-sm">{formatMoney(total)}</span>
+                  <span className="font-black text-amber-600 text-sm">
+                    <MoneyDisplay amountUzs={total} usdRate={usdRate} inline uzsClassName="text-sm font-black text-amber-600" usdClassName="text-xs text-emerald-600" />
+                  </span>
                 </div>
                 {settings.mandatoryDebtDueDate && (
                   <div>
@@ -925,20 +938,23 @@ export default function POS({
             )}
 
             {/* Calculations Breakdown */}
-            <div className="border-t border-slate-200 pt-3 space-y-1.5 text-xs font-semibold text-slate-600">
-              <div className="flex justify-between">
+            <div className="border-t border-slate-200 pt-3 space-y-2 text-xs font-semibold text-slate-600">
+              <div className="flex justify-between items-start">
                 <span>Jami tovarlar summasi:</span>
-                <span className="text-slate-800 font-bold">{formatMoney(subtotal)}</span>
+                <MoneyDisplay amountUzs={subtotal} usdRate={usdRate} className="text-right" uzsClassName="text-slate-800 font-bold" usdClassName="text-[10px] text-emerald-600 font-semibold" />
               </div>
               {calculatedDiscount > 0 && (
-                <div className="flex justify-between text-rose-600">
+                <div className="flex justify-between items-start text-rose-600">
                   <span>Chegirma:</span>
-                  <span>-{formatMoney(calculatedDiscount)}</span>
+                  <MoneyDisplay amountUzs={calculatedDiscount} usdRate={usdRate} className="text-right" uzsClassName="font-bold" usdClassName="text-[10px] text-rose-500" />
                 </div>
               )}
-              <div className="flex justify-between text-base font-black text-slate-900 border-t border-slate-200 pt-2">
-                <span>TO'LANADI:</span>
-                <span className="text-lg text-blue-700">{formatMoney(total)}</span>
+              <div className="flex justify-between items-start text-base font-black text-slate-900 border-t border-slate-200 pt-2">
+                <span>TO'LANADI (so'm):</span>
+                <div className="text-right">
+                  <span className="text-lg text-blue-700 block">{formatMoney(total)}</span>
+                  <span className="text-sm text-emerald-600 font-bold">{formatUsd(total, usdRate)}</span>
+                </div>
               </div>
             </div>
 
