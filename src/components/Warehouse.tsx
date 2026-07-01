@@ -1581,19 +1581,20 @@ export default function Warehouse({
         </div>
       )}
 
-      {/* MODAL 7: VIEW & DOWNLOAD & PRINT BARCODE */}
+      {/* MODAL 7: XPRINTER TERMo ETIKET — SHTIRIX-KOD */}
       {selectedBarcodeProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative text-center" id="barcode-print-area">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 no-print">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative text-center">
             <button
               onClick={() => setSelectedBarcodeProduct(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer border-none bg-transparent"
             >
               <X className="h-5 w-5" />
             </button>
 
             <Barcode className="h-10 w-10 text-blue-600 mx-auto mb-2" />
             <h4 className="text-sm font-black text-slate-800 leading-snug">{selectedBarcodeProduct.name}</h4>
+            <p className="text-[10px] text-slate-400 mt-1">Xprinter etiket: 50×30 mm</p>
 
             <BarcodeLabel
               ref={barcodeLabelRef}
@@ -1601,13 +1602,16 @@ export default function Warehouse({
               className="w-full my-4"
             />
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <button
-                onClick={() => window.print()}
-                className="flex-1 py-1.5 border hover:bg-slate-50 border-slate-200 rounded-lg text-xs font-bold text-slate-700 cursor-pointer flex items-center justify-center space-x-1"
+                type="button"
+                onClick={() => {
+                  barcodeLabelRef.current?.printXprinter(selectedBarcodeProduct.name);
+                }}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center gap-2 border-none"
               >
-                <Printer className="h-3.5 w-3.5" />
-                <span>Chop etish</span>
+                <Printer className="h-4 w-4" />
+                <span>Xprinter orqali chop etish</span>
               </button>
 
               <button
@@ -1616,10 +1620,10 @@ export default function Warehouse({
                   const safeName = selectedBarcodeProduct.name.replace(/[^\w\s-]/g, '').trim().slice(0, 40);
                   barcodeLabelRef.current?.downloadPng(`barcode-${safeName || selectedBarcodeProduct.barcode}`);
                 }}
-                className="flex-1 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer flex items-center justify-center space-x-1 border-none"
+                className="w-full py-2 border hover:bg-slate-50 border-slate-200 rounded-lg text-xs font-bold text-slate-700 cursor-pointer flex items-center justify-center gap-2 bg-white"
               >
                 <Download className="h-3.5 w-3.5" />
-                <span>Yuklash</span>
+                <span>PNG yuklab olish</span>
               </button>
             </div>
           </div>

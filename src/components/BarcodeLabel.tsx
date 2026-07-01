@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import JsBarcode from 'jsbarcode';
 import { getBarcodeFormat, normalizeBarcodeValue } from '../utils/barcode';
+import { printXprinterBarcode } from '../utils/printXprinterBarcode';
 
 export interface BarcodeLabelHandle {
   downloadPng: (filename: string) => void;
+  printXprinter: (productName: string) => void;
 }
 
 interface BarcodeLabelProps {
@@ -78,6 +80,9 @@ const BarcodeLabel = forwardRef<BarcodeLabelHandle, BarcodeLabelProps>(
           URL.revokeObjectURL(url);
         };
         img.src = url;
+      },
+      printXprinter(productName: string) {
+        printXprinterBarcode({ barcode: value, productName });
       },
     }));
 

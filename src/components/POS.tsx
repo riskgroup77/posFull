@@ -1,3 +1,4 @@
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import MoneyDisplay from './MoneyDisplay';
 import { formatUzs, formatUsd } from '../utils/currency';
 import { Product, Category, Customer, Sale, User, StoreSettings, SaleItem } from '../types';
