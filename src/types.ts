@@ -132,12 +132,15 @@ export interface StoreSettings {
   productionMarginPercent?: number;
 }
 
+export type LaborType = 'daily' | 'per_unit';
+
 export interface Technician {
   id: string;
   name: string;
   phone?: string;
   dailyRate: number;
   perUnitRate: number;
+  defaultLaborType: LaborType;
   status: 'active' | 'inactive';
   notes?: string;
 }
@@ -160,6 +163,9 @@ export interface ProductionOrder {
   technicianId: string;
   technicianName: string;
   status: ProductionOrderStatus;
+  laborType: LaborType;
+  laborQuantity: number;
+  /** @deprecated use laborQuantity */
   workDays: number;
   dailyRateSnapshot: number;
   perUnitRateSnapshot: number;
@@ -192,14 +198,29 @@ export interface ProductionTechnicianReport {
   technicianId: string;
   technicianName: string;
   ordersCount: number;
-  totalWorkDays: number;
+  totalLaborQuantity: number;
   dailyEarnings: number;
   unitEarnings: number;
   totalLabor: number;
+}
+
+export interface ProductionReportOrder {
+  id: string;
+  orderNo: string;
+  title: string;
+  technicianName: string;
+  laborType: LaborType;
+  laborQuantity: number;
+  laborCost: number;
+  totalCost: number;
+  revenue: number;
+  profit: number;
+  soldAt?: string | null;
 }
 
 export interface ProductionReport {
   month?: string | null;
   summary: ProductionReportSummary;
   technicians: ProductionTechnicianReport[];
+  orders: ProductionReportOrder[];
 }

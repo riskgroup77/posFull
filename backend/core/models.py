@@ -284,9 +284,22 @@ class Technician(models.Model):
         (STATUS_INACTIVE, 'Inactive'),
     ]
 
+    LABOR_DAILY = 'daily'
+    LABOR_PER_UNIT = 'per_unit'
+    LABOR_TYPE_CHOICES = [
+        (LABOR_DAILY, 'Daily wage'),
+        (LABOR_PER_UNIT, 'Per unit'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=150)
     phone = models.CharField(max_length=32, blank=True, default='')
+    default_labor_type = models.CharField(
+        max_length=20,
+        choices=LABOR_TYPE_CHOICES,
+        default=LABOR_DAILY,
+        help_text='Standart ish haqi turi: kunlik yoki dona (uskuna)',
+    )
     daily_rate = models.DecimalField(
         max_digits=14,
         decimal_places=2,
@@ -333,7 +346,16 @@ class ProductionOrder(models.Model):
         related_name='production_orders',
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
-    work_days = models.PositiveSmallIntegerField(default=1, help_text='Ishlangan kunlar soni')
+    labor_type = models.CharField(
+        max_length=20,
+        choices=Technician.LABOR_TYPE_CHOICES,
+        default=Technician.LABOR_DAILY,
+        help_text='Ish haqi turi: kunlik yoki dona (uskuna)',
+    )
+    labor_quantity = models.PositiveSmallIntegerField(
+        default=1,
+        help_text='Kunlik rejimda — ish kunlari; dona rejimda — uskuna soni',
+    )
     daily_rate_snapshot = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     per_unit_rate_snapshot = models.DecimalField(max_digits=14, decimal_places=2, default=0)
     margin_percent = models.DecimalField(max_digits=6, decimal_places=2, default=20)

@@ -53,10 +53,11 @@ def recalculate_order(order: ProductionOrder, selling_price_override=None):
     for item in order.items.all():
         parts_cost += _money(item.total)
 
-    daily = _money(order.daily_rate_snapshot)
-    per_unit = _money(order.per_unit_rate_snapshot)
-    work_days = max(int(order.work_days or 0), 0)
-    labor_cost = _money(daily * work_days + per_unit)
+    qty = max(int(order.labor_quantity or 0), 0)
+    if order.labor_type == Technician.LABOR_DAILY:
+        labor_cost = _money(_money(order.daily_rate_snapshot) * qty)
+    else:
+        labor_cost = _money(_money(order.per_unit_rate_snapshot) * qty)
 
     total_cost = _money(parts_cost + labor_cost)
     margin = _money(order.margin_percent)
@@ -79,8 +80,17 @@ def recalculate_order(order: ProductionOrder, selling_price_override=None):
 
 
 def _ensure_editable(order: ProductionOrder):
-    if order.status not in (ProductionOrder.STATUS_DRAFT, ProductionOrder.STATUS_IN_PROGRESS):
+    if order.status not in (
+        ProductionOrder.STATUS_DRAFT,
+        ProductionOrder.STATUS_IN_PROGRESS,
+        ProductionOrder.STATUS_COMPLETED,
+    ):
         raise ValueError('Buyurtma tahrirlash mumkin emas')
+
+
+def _ensure_parts_editable(order: ProductionOrder):
+    if order.status not in (ProductionOrder.STATUS_DRAFT, ProductionOrder.STATUS_IN_PROGRESS):
+        raise ValueError('Qismlarni faqat jarayondagi buyurtmaga qo\'shish mumkin')
 
 
 @transaction.atomic
@@ -89,9 +99,14 @@ def create_production_order(user, data):
     technician = Technician.objects.get(pk=technician_id, status=Technician.STATUS_ACTIVE)
 
     settings = StoreSettings.get_solo()
-    work_days = int(data.get('workDays') or data.get('work_days') or 1)
-    if work_days < 1:
-        raise ValueError('Ish kunlari kamida 1 bo\'lishi kerak')
+    labor_quantity = int(data.get('laborQuantity') or data.get('labor_quantity')
+                         or data.get('workDays') or data.get('work_days') or 1)
+    if labor_quantity < 1:
+        raise ValueError('Miqdor kamida 1 bo\'lishi kerak')
+
+    labor_type = data.get('laborType') or data.get('labor_type') or technician.default_labor_type
+    if labor_type not in (Technician.LABOR_DAILY, Technician.LABOR_PER_UNIT):
+        raise ValueError('Noto\'g\'ri ish haqi turi')
 
     margin = data.get('marginPercent') or data.get('margin_percent')
     if margin is None:
@@ -102,7 +117,8 @@ def create_production_order(user, data):
         title=data['title'],
         technician=technician,
         status=ProductionOrder.STATUS_DRAFT,
-        work_days=work_days,
+        labor_type=labor_type,
+        labor_quantity=labor_quantity,
         daily_rate_snapshot=technician.daily_rate,
         per_unit_rate_snapshot=technician.per_unit_rate,
         margin_percent=_money(margin),
@@ -123,11 +139,21 @@ def update_production_order(order_id, data):
         order.title = data['title']
     if 'notes' in data:
         order.notes = data.get('notes', '')
-    if 'workDays' in data or 'work_days' in data:
-        work_days = int(data.get('workDays') or data.get('work_days') or 1)
-        if work_days < 1:
-            raise ValueError('Ish kunlari kamida 1 bo\'lishi kerak')
-        order.work_days = work_days
+
+    labor_quantity = data.get('laborQuantity') or data.get('labor_quantity')
+    if labor_quantity is None:
+        labor_quantity = data.get('workDays') or data.get('work_days')
+    if labor_quantity is not None:
+        labor_quantity = int(labor_quantity)
+        if labor_quantity < 1:
+            raise ValueError('Miqdor kamida 1 bo\'lishi kerak')
+        order.labor_quantity = labor_quantity
+
+    labor_type = data.get('laborType') or data.get('labor_type')
+    if labor_type is not None:
+        if labor_type not in (Technician.LABOR_DAILY, Technician.LABOR_PER_UNIT):
+            raise ValueError('Noto\'g\'ri ish haqi turi')
+        order.labor_type = labor_type
 
     technician_id = data.get('technicianId') or data.get('technician_id')
     if technician_id:
@@ -148,9 +174,7 @@ def update_production_order(order_id, data):
 @transaction.atomic
 def add_part_to_order(user, order_id, product_id, quantity):
     order = ProductionOrder.objects.select_for_update().get(pk=order_id)
-    _ensure_editable(order)
-
-    qty = _money(quantity)
+    _ensure_parts_editable(order)
     if qty <= 0:
         raise ValueError('Miqdor noto\'g\'ri')
 
@@ -199,7 +223,7 @@ def add_part_to_order(user, order_id, product_id, quantity):
 @transaction.atomic
 def remove_part_from_order(user, order_id, item_id):
     order = ProductionOrder.objects.select_for_update().get(pk=order_id)
-    _ensure_editable(order)
+    _ensure_parts_editable(order)
 
     item = ProductionOrderItem.objects.select_related('product', 'movement').get(
         pk=item_id,
@@ -267,6 +291,28 @@ def cancel_production_order(order_id):
     order.profit = Decimal('0')
     order.save()
     return order
+
+
+@transaction.atomic
+def purge_production_order(order_id):
+    """Bekor qilingan buyurtmani bazadan o'chirish."""
+    order = ProductionOrder.objects.select_for_update().get(pk=order_id)
+    if order.status != ProductionOrder.STATUS_CANCELLED:
+        raise ValueError('Faqat bekor qilingan buyurtmani o\'chirish mumkin')
+    order.delete()
+    return order
+
+
+@transaction.atomic
+def delete_technician(technician_id):
+    technician = Technician.objects.get(pk=technician_id)
+    if ProductionOrder.objects.filter(
+        technician=technician,
+    ).exclude(status=ProductionOrder.STATUS_CANCELLED).exists():
+        raise ValueError('Ustaga bog\'langan faol buyurtmalar bor — avval ularni yakunlang yoki bekor qiling')
+    ProductionOrder.objects.filter(technician=technician, status=ProductionOrder.STATUS_CANCELLED).delete()
+    technician.delete()
+    return technician
 
 
 @transaction.atomic
@@ -381,26 +427,49 @@ def production_report(month=None):
     total_profit = sum(_money(o.profit) for o in sold_orders)
 
     tech_map = {}
+    orders_data = []
     for order in sold_orders:
+        qty = int(order.labor_quantity)
+        if order.labor_type == Technician.LABOR_DAILY:
+            labor_part = _money(order.daily_rate_snapshot * qty)
+            daily_part = labor_part
+            unit_part = Decimal('0')
+        else:
+            labor_part = _money(order.per_unit_rate_snapshot * qty)
+            daily_part = Decimal('0')
+            unit_part = labor_part
+
+        orders_data.append({
+            'id': str(order.id),
+            'orderNo': order.order_no,
+            'title': order.title,
+            'technicianName': order.technician.name,
+            'laborType': order.labor_type,
+            'laborQuantity': qty,
+            'laborCost': float(order.labor_cost),
+            'totalCost': float(order.total_cost),
+            'revenue': float(order.sale.final_amount if order.sale_id else order.selling_price),
+            'profit': float(order.profit),
+            'soldAt': order.sold_at.isoformat() if order.sold_at else None,
+        })
+
         tid = str(order.technician_id)
         if tid not in tech_map:
             tech_map[tid] = {
                 'technicianId': tid,
                 'technicianName': order.technician.name,
                 'ordersCount': 0,
-                'totalWorkDays': 0,
+                'totalLaborQuantity': 0,
                 'dailyEarnings': Decimal('0'),
                 'unitEarnings': Decimal('0'),
                 'totalLabor': Decimal('0'),
             }
         entry = tech_map[tid]
         entry['ordersCount'] += 1
-        entry['totalWorkDays'] += int(order.work_days)
-        daily_part = _money(order.daily_rate_snapshot * order.work_days)
-        unit_part = _money(order.per_unit_rate_snapshot)
+        entry['totalLaborQuantity'] += qty
         entry['dailyEarnings'] += daily_part
         entry['unitEarnings'] += unit_part
-        entry['totalLabor'] += _money(daily_part + unit_part)
+        entry['totalLabor'] += labor_part
 
     technicians = []
     for entry in tech_map.values():
@@ -408,7 +477,7 @@ def production_report(month=None):
             'technicianId': entry['technicianId'],
             'technicianName': entry['technicianName'],
             'ordersCount': entry['ordersCount'],
-            'totalWorkDays': entry['totalWorkDays'],
+            'totalLaborQuantity': entry['totalLaborQuantity'],
             'dailyEarnings': float(entry['dailyEarnings']),
             'unitEarnings': float(entry['unitEarnings']),
             'totalLabor': float(entry['totalLabor']),
@@ -427,4 +496,5 @@ def production_report(month=None):
             'totalProfit': float(total_profit),
         },
         'technicians': technicians,
+        'orders': orders_data,
     }

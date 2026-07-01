@@ -7,6 +7,7 @@ import {
   StoreSettings,
   Customer,
   ProductionReport,
+  LaborType,
 } from '../types';
 import MoneyDisplay from './MoneyDisplay';
 import {
@@ -33,6 +34,8 @@ import {
   CheckCircle,
   ShoppingCart,
   Package,
+  Pencil,
+  Eye,
 } from 'lucide-react';
 
 interface ProductionProps {
@@ -60,6 +63,39 @@ const STATUS_COLORS: Record<ProductionOrderStatus, string> = {
   cancelled: 'bg-red-50 text-red-600',
 };
 
+const LABOR_LABELS: Record<LaborType, string> = {
+  daily: 'Kunlik haq',
+  per_unit: 'Uskuna (dona) bo\'yicha',
+};
+
+const LABOR_QTY_LABELS: Record<LaborType, string> = {
+  daily: 'Rejalashtirilgan ish kunlari',
+  per_unit: 'Uskuna soni',
+};
+
+function emptyOrderForm() {
+  return {
+    title: '',
+    technicianId: '',
+    laborType: 'daily' as LaborType,
+    laborQuantity: 1,
+    notes: '',
+    useTechnicianDefault: true,
+  };
+}
+
+function emptyTechForm() {
+  return {
+    name: '',
+    phone: '',
+    dailyRate: 0,
+    perUnitRate: 0,
+    defaultLaborType: 'daily' as LaborType,
+    status: 'active' as 'active' | 'inactive',
+    notes: '',
+  };
+}
+
 function currentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -80,24 +116,15 @@ export default function Production({
   const [loading, setLoading] = useState(false);
 
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showEditOrder, setShowEditOrder] = useState(false);
   const [showNewTech, setShowNewTech] = useState(false);
   const [showSell, setShowSell] = useState(false);
 
-  const [orderForm, setOrderForm] = useState({
-    title: '',
-    technicianId: '',
-    workDays: 1,
-    notes: '',
-  });
+  const [orderForm, setOrderForm] = useState(emptyOrderForm);
 
-  const [techForm, setTechForm] = useState({
-    name: '',
-    phone: '',
-    dailyRate: 0,
-    perUnitRate: 0,
-    notes: '',
-  });
+  const [techForm, setTechForm] = useState(emptyTechForm);
   const [editingTechId, setEditingTechId] = useState<string | null>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
 
   const [partProductId, setPartProductId] = useState('');
   const [partQty, setPartQty] = useState(1);
@@ -118,6 +145,49 @@ export default function Production({
   );
 
   const activeProducts = products.filter((p) => p.status === 'active' && p.stock > 0);
+
+  const visibleOrders = useMemo(
+    () => productionOrders.filter((o) => o.status !== 'cancelled'),
+    [productionOrders],
+  );
+
+  const applyTechnicianDefaults = (technicianId: string, prev: ReturnType<typeof emptyOrderForm>) => {
+    const tech = technicians.find((t) => t.id === technicianId);
+    if (!tech || !prev.useTechnicianDefault) return { ...prev, technicianId };
+    return {
+      ...prev,
+      technicianId,
+      laborType: tech.defaultLaborType,
+    };
+  };
+
+  const openEditOrder = (order: ProductionOrder) => {
+    setEditingOrderId(order.id);
+    setOrderForm({
+      title: order.title,
+      technicianId: order.technicianId,
+      laborType: order.laborType,
+      laborQuantity: order.laborQuantity,
+      notes: order.notes || '',
+      useTechnicianDefault: false,
+    });
+    setShowEditOrder(true);
+  };
+
+  const handleDeleteOrder = (order: ProductionOrder) => {
+    if (order.status === 'sold') {
+      alert('Sotilgan buyurtmani o\'chirib bo\'lmaydi');
+      return;
+    }
+    const msg = order.status === 'cancelled'
+      ? 'Buyurtmani butunlay o\'chirish?'
+      : 'Buyurtmani bekor qilish va qismlarni omborga qaytarish?';
+    if (!confirm(msg)) return;
+    run(async () => {
+      await cancelProductionOrder(order.id);
+      if (selectedOrderId === order.id) setSelectedOrderId(null);
+    });
+  };
 
   const showError = (err: unknown) => {
     alert(err instanceof ApiError ? err.message : 'Xatolik yuz berdi');
@@ -163,13 +233,29 @@ export default function Production({
       const order = await createProductionOrder({
         title: orderForm.title,
         technicianId: orderForm.technicianId,
-        workDays: orderForm.workDays,
+        laborType: orderForm.laborType,
+        laborQuantity: orderForm.laborQuantity,
         marginPercent: settings.productionMarginPercent ?? 20,
         notes: orderForm.notes,
       });
       setShowNewOrder(false);
-      setOrderForm({ title: '', technicianId: '', workDays: 1, notes: '' });
+      setOrderForm(emptyOrderForm());
       setSelectedOrderId(order.id);
+    });
+
+  const handleUpdateOrder = () =>
+    run(async () => {
+      if (!editingOrderId) return;
+      await updateProductionOrder(editingOrderId, {
+        title: orderForm.title,
+        technicianId: orderForm.technicianId,
+        laborType: orderForm.laborType,
+        laborQuantity: orderForm.laborQuantity,
+        notes: orderForm.notes,
+      });
+      setShowEditOrder(false);
+      setEditingOrderId(null);
+      setOrderForm(emptyOrderForm());
     });
 
   const handleSaveTech = () =>
@@ -182,7 +268,8 @@ export default function Production({
           phone: techForm.phone,
           dailyRate: techForm.dailyRate,
           perUnitRate: techForm.perUnitRate,
-          status: 'active',
+          defaultLaborType: techForm.defaultLaborType,
+          status: techForm.status,
           notes: techForm.notes,
         });
       } else {
@@ -191,13 +278,14 @@ export default function Production({
           phone: techForm.phone,
           dailyRate: techForm.dailyRate,
           perUnitRate: techForm.perUnitRate,
-          status: 'active',
+          defaultLaborType: techForm.defaultLaborType,
+          status: techForm.status,
           notes: techForm.notes,
         });
       }
       setShowNewTech(false);
       setEditingTechId(null);
-      setTechForm({ name: '', phone: '', dailyRate: 0, perUnitRate: 0, notes: '' });
+      setTechForm(emptyTechForm());
     });
 
   const handleAddPart = () =>
@@ -230,10 +318,93 @@ export default function Production({
     });
 
   const laborBreakdown = (order: ProductionOrder) => {
-    const daily = order.dailyRateSnapshot * order.workDays;
-    const unit = order.perUnitRateSnapshot;
-    return { daily, unit, total: daily + unit };
+    const qty = order.laborQuantity;
+    if (order.laborType === 'daily') {
+      const daily = order.dailyRateSnapshot * qty;
+      return { type: 'daily' as LaborType, qty, rate: order.dailyRateSnapshot, total: daily };
+    }
+    const unit = order.perUnitRateSnapshot * qty;
+    return { type: 'per_unit' as LaborType, qty, rate: order.perUnitRateSnapshot, total: unit };
   };
+
+  const canEditOrder = (order: ProductionOrder) =>
+    order.status === 'draft' || order.status === 'in_progress' || order.status === 'completed';
+
+  const renderOrderFormFields = (isEdit: boolean) => (
+    <>
+      <Field label="Uskuna nomi">
+        <input
+          className="w-full border border-slate-200 rounded-lg px-3 py-2"
+          value={orderForm.title}
+          onChange={(e) => setOrderForm({ ...orderForm, title: e.target.value })}
+          placeholder="Masalan: Konditsioner montaj"
+        />
+      </Field>
+      <Field label="Usta">
+        <select
+          className="w-full border border-slate-200 rounded-lg px-3 py-2"
+          value={orderForm.technicianId}
+          onChange={(e) => setOrderForm((prev) => applyTechnicianDefaults(e.target.value, prev))}
+        >
+          <option value="">Tanlang...</option>
+          {technicians.filter((t) => t.status === 'active').map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </Field>
+      {!isEdit && (
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input
+            type="checkbox"
+            checked={orderForm.useTechnicianDefault}
+            onChange={(e) => {
+              const checked = e.target.checked;
+              setOrderForm((prev) => {
+                const next = { ...prev, useTechnicianDefault: checked };
+                if (checked && prev.technicianId) {
+                  const tech = technicians.find((t) => t.id === prev.technicianId);
+                  if (tech) next.laborType = tech.defaultLaborType;
+                }
+                return next;
+              });
+            }}
+          />
+          Ustaning standart ish haqi turidan foydalanish
+        </label>
+      )}
+      <Field label="Ish haqi turi">
+        <select
+          className="w-full border border-slate-200 rounded-lg px-3 py-2"
+          value={orderForm.laborType}
+          onChange={(e) => setOrderForm({
+            ...orderForm,
+            laborType: e.target.value as LaborType,
+            useTechnicianDefault: false,
+          })}
+        >
+          <option value="daily">{LABOR_LABELS.daily}</option>
+          <option value="per_unit">{LABOR_LABELS.per_unit}</option>
+        </select>
+      </Field>
+      <Field label={LABOR_QTY_LABELS[orderForm.laborType]}>
+        <input
+          type="number"
+          min={1}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2"
+          value={orderForm.laborQuantity}
+          onChange={(e) => setOrderForm({ ...orderForm, laborQuantity: Number(e.target.value) })}
+        />
+      </Field>
+      <Field label="Izoh (ixtiyoriy)">
+        <textarea
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+          rows={2}
+          value={orderForm.notes}
+          onChange={(e) => setOrderForm({ ...orderForm, notes: e.target.value })}
+        />
+      </Field>
+    </>
+  );
 
   return (
     <div className="space-y-6">
@@ -276,33 +447,57 @@ export default function Production({
             </div>
 
             <div className="space-y-2 max-h-[70vh] overflow-y-auto">
-              {productionOrders.length === 0 && (
+              {visibleOrders.length === 0 && (
                 <p className="text-sm text-slate-500 p-4 bg-white rounded-xl border">Buyurtmalar yo&apos;q</p>
               )}
-              {productionOrders.map((order) => (
-                <button
+              {visibleOrders.map((order) => (
+                <div
                   key={order.id}
-                  type="button"
-                  onClick={() => setSelectedOrderId(order.id)}
                   className={`w-full text-left p-4 rounded-xl border transition-all ${
                     selectedOrderId === order.id
                       ? 'border-blue-400 bg-blue-50/50 shadow-sm'
                       : 'border-slate-200 bg-white hover:border-slate-300'
                   }`}
                 >
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <p className="font-bold text-slate-800">{order.title}</p>
-                      <p className="text-xs text-slate-500 mt-0.5">{order.orderNo} · {order.technicianName}</p>
+                  <button type="button" onClick={() => setSelectedOrderId(order.id)} className="w-full text-left">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <p className="font-bold text-slate-800">{order.title}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {order.orderNo} · {order.technicianName} · {LABOR_LABELS[order.laborType]}
+                        </p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[order.status]}`}>
+                        {STATUS_LABELS[order.status]}
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_COLORS[order.status]}`}>
-                      {STATUS_LABELS[order.status]}
-                    </span>
+                    <div className="mt-2 text-xs text-slate-600">
+                      <MoneyDisplay amountUzs={order.totalCost} usdRate={settings.usdRate} uzsClassName="font-semibold" />
+                    </div>
+                  </button>
+                  <div className="mt-3 flex gap-2 border-t border-slate-100 pt-2">
+                    {canEditOrder(order) && (
+                      <button
+                        type="button"
+                        onClick={() => openEditOrder(order)}
+                        className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Tahrirlash
+                      </button>
+                    )}
+                    {order.status !== 'sold' && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOrder(order)}
+                        className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        {order.status === 'cancelled' ? 'O\'chirish' : 'Bekor qilish'}
+                      </button>
+                    )}
                   </div>
-                  <div className="mt-2 text-xs text-slate-600">
-                    <MoneyDisplay amountUzs={order.totalCost} usdRate={settings.usdRate} uzsClassName="font-semibold" />
-                  </div>
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -320,12 +515,25 @@ export default function Production({
                     <h3 className="text-xl font-bold text-slate-900">{selectedOrder.title}</h3>
                     <p className="text-sm text-slate-500 mt-1">
                       {selectedOrder.orderNo} · Usta: <strong>{selectedOrder.technicianName}</strong>
-                      {' · '}{selectedOrder.workDays} kun ish
+                      {' · '}{LABOR_LABELS[selectedOrder.laborType]}
+                      {' · '}{LABOR_QTY_LABELS[selectedOrder.laborType]}: <strong>{selectedOrder.laborQuantity}</strong>
                     </p>
                   </div>
-                  <span className={`h-fit text-xs font-bold px-3 py-1 rounded-full ${STATUS_COLORS[selectedOrder.status]}`}>
-                    {STATUS_LABELS[selectedOrder.status]}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {canEditOrder(selectedOrder) && (
+                      <button
+                        type="button"
+                        onClick={() => openEditOrder(selectedOrder)}
+                        className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        title="Tahrirlash"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
+                    <span className={`h-fit text-xs font-bold px-3 py-1 rounded-full ${STATUS_COLORS[selectedOrder.status]}`}>
+                      {STATUS_LABELS[selectedOrder.status]}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -344,19 +552,12 @@ export default function Production({
 
                 <div className="px-6 pb-4">
                   <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm">
-                    <p className="font-bold text-amber-800 mb-2">Usta ish haqi tafsiloti</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-amber-900">
-                      <div>
-                        Kunlik: {selectedOrder.dailyRateSnapshot.toLocaleString()} × {selectedOrder.workDays} kun ={' '}
-                        <strong>{laborBreakdown(selectedOrder).daily.toLocaleString()}</strong>
-                      </div>
-                      <div>
-                        1 uskuna uchun: <strong>{laborBreakdown(selectedOrder).unit.toLocaleString()}</strong>
-                      </div>
-                      <div>
-                        Jami ish haqi: <strong>{laborBreakdown(selectedOrder).total.toLocaleString()}</strong> so&apos;m
-                      </div>
-                    </div>
+                    <p className="font-bold text-amber-800 mb-2">Usta ish haqi tafsiloti — {LABOR_LABELS[laborBreakdown(selectedOrder).type]}</p>
+                    <p className="text-amber-900">
+                      {laborBreakdown(selectedOrder).rate.toLocaleString()} × {laborBreakdown(selectedOrder).qty}{' '}
+                      {selectedOrder.laborType === 'daily' ? 'kun' : 'dona'} ={' '}
+                      <strong>{laborBreakdown(selectedOrder).total.toLocaleString()}</strong> so&apos;m
+                    </p>
                   </div>
                 </div>
 
@@ -449,33 +650,13 @@ export default function Production({
                 <div className="px-6 pb-6 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                   {(selectedOrder.status === 'draft' || selectedOrder.status === 'in_progress') && (
                     <>
-                      <div className="flex items-center gap-2 mr-4">
-                        <label className="text-xs font-semibold text-slate-500">Ish kunlari:</label>
-                        <input
-                          type="number"
-                          min={1}
-                          className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-sm"
-                          value={selectedOrder.workDays}
-                          onChange={(e) => {
-                            const days = Number(e.target.value);
-                            run(() => updateProductionOrder(selectedOrder.id, { workDays: days }));
-                          }}
-                        />
-                      </div>
                       <button type="button" onClick={handleComplete} className="pos-btn-primary" disabled={loading}>
                         <CheckCircle className="w-4 h-4" />
                         Yakunlash
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm('Buyurtmani bekor qilish va qismlarni qaytarish?')) {
-                            run(async () => {
-                              await cancelProductionOrder(selectedOrder.id);
-                              setSelectedOrderId(null);
-                            });
-                          }
-                        }}
+                        onClick={() => handleDeleteOrder(selectedOrder)}
                         className="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50"
                         disabled={loading}
                       >
@@ -484,10 +665,24 @@ export default function Production({
                     </>
                   )}
                   {selectedOrder.status === 'completed' && (
-                    <button type="button" onClick={() => setShowSell(true)} className="pos-btn-primary" disabled={loading}>
-                      <ShoppingCart className="w-4 h-4" />
-                      Sotish
-                    </button>
+                    <>
+                      <button type="button" onClick={() => openEditOrder(selectedOrder)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50" disabled={loading}>
+                        <Pencil className="w-4 h-4 inline mr-1" />
+                        Tahrirlash
+                      </button>
+                      <button type="button" onClick={() => setShowSell(true)} className="pos-btn-primary" disabled={loading}>
+                        <ShoppingCart className="w-4 h-4" />
+                        Sotish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOrder(selectedOrder)}
+                        className="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50"
+                        disabled={loading}
+                      >
+                        Bekor qilish
+                      </button>
+                    </>
                   )}
                   {selectedOrder.status === 'sold' && selectedOrder.saleId && (
                     <div className="text-sm text-emerald-700 font-semibold bg-emerald-50 px-4 py-2 rounded-xl">
@@ -532,6 +727,10 @@ export default function Production({
                 </div>
                 <div className="mt-4 space-y-2 text-sm">
                   <div className="flex justify-between">
+                    <span className="text-slate-500">Standart tur</span>
+                    <span className="font-semibold text-slate-800">{LABOR_LABELS[t.defaultLaborType ?? 'daily']}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-slate-500">Kunlik haq</span>
                     <MoneyDisplay amountUzs={t.dailyRate} usdRate={settings.usdRate} inline uzsClassName="font-semibold" />
                   </div>
@@ -540,10 +739,10 @@ export default function Production({
                     <MoneyDisplay amountUzs={t.perUnitRate} usdRate={settings.usdRate} inline uzsClassName="font-semibold" />
                   </div>
                 </div>
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
-                    className="text-xs font-semibold text-blue-600 hover:underline"
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline"
                     onClick={() => {
                       setEditingTechId(t.id);
                       setTechForm({
@@ -551,20 +750,24 @@ export default function Production({
                         phone: t.phone || '',
                         dailyRate: t.dailyRate,
                         perUnitRate: t.perUnitRate,
+                        defaultLaborType: t.defaultLaborType ?? 'daily',
+                        status: t.status,
                         notes: t.notes || '',
                       });
                       setShowNewTech(true);
                     }}
                   >
+                    <Pencil className="w-3.5 h-3.5" />
                     Tahrirlash
                   </button>
                   <button
                     type="button"
-                    className="text-xs font-semibold text-red-600 hover:underline"
+                    className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline"
                     onClick={() => {
-                      if (confirm('Ustani o\'chirish?')) run(() => deleteTechnician(t.id));
+                      if (confirm(`"${t.name}" ustasini o'chirish?`)) run(() => deleteTechnician(t.id));
                     }}
                   >
+                    <Trash2 className="w-3.5 h-3.5" />
                     O&apos;chirish
                   </button>
                 </div>
@@ -615,7 +818,7 @@ export default function Production({
                     <tr>
                       <th className="text-left p-3">Usta</th>
                       <th className="text-right p-3">Buyurtmalar</th>
-                      <th className="text-right p-3">Ish kunlari</th>
+                      <th className="text-right p-3">Miqdor (kun/dona)</th>
                       <th className="text-right p-3">Kunlik haq</th>
                       <th className="text-right p-3">Uskuna haqi</th>
                       <th className="text-right p-3">Jami</th>
@@ -631,10 +834,64 @@ export default function Production({
                         <tr key={t.technicianId} className="border-t border-slate-100">
                           <td className="p-3 font-medium">{t.technicianName}</td>
                           <td className="p-3 text-right">{t.ordersCount}</td>
-                          <td className="p-3 text-right">{t.totalWorkDays}</td>
+                          <td className="p-3 text-right">{t.totalLaborQuantity}</td>
                           <td className="p-3 text-right">{t.dailyEarnings.toLocaleString()}</td>
                           <td className="p-3 text-right">{t.unitEarnings.toLocaleString()}</td>
                           <td className="p-3 text-right font-bold">{t.totalLabor.toLocaleString()}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                <h3 className="p-4 font-bold text-slate-800 border-b">Oylik sotilgan buyurtmalar</h3>
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="text-left p-3">Buyurtma</th>
+                      <th className="text-left p-3">Usta</th>
+                      <th className="text-left p-3">Ish haqi</th>
+                      <th className="text-right p-3">Tannarx</th>
+                      <th className="text-right p-3">Tushum</th>
+                      <th className="text-right p-3">Foyda</th>
+                      <th className="p-3 w-24" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(report.orders ?? []).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-6 text-center text-slate-400">Ma&apos;lumot yo&apos;q</td>
+                      </tr>
+                    ) : (
+                      (report.orders ?? []).map((ro) => (
+                        <tr key={ro.id} className="border-t border-slate-100">
+                          <td className="p-3">
+                            <p className="font-medium">{ro.title}</p>
+                            <p className="text-xs text-slate-500">{ro.orderNo}</p>
+                          </td>
+                          <td className="p-3">{ro.technicianName}</td>
+                          <td className="p-3 text-xs">
+                            {LABOR_LABELS[ro.laborType]}<br />
+                            {ro.laborQuantity} {ro.laborType === 'daily' ? 'kun' : 'dona'}
+                          </td>
+                          <td className="p-3 text-right tabular-nums">{ro.totalCost.toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums font-semibold">{ro.revenue.toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums text-emerald-700 font-bold">{ro.profit.toLocaleString()}</td>
+                          <td className="p-3">
+                            <button
+                              type="button"
+                              className="text-blue-600 hover:text-blue-800"
+                              title="Ko'rish"
+                              onClick={() => {
+                                setSelectedOrderId(ro.id);
+                                setSubTab('orders');
+                              }}
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -647,37 +904,9 @@ export default function Production({
       )}
 
       {showNewOrder && (
-        <Modal title="Yangi ishlab chiqarish buyurtmasi" onClose={() => setShowNewOrder(false)}>
+        <Modal title="Yangi ishlab chiqarish buyurtmasi" onClose={() => { setShowNewOrder(false); setOrderForm(emptyOrderForm()); }}>
           <div className="space-y-4">
-            <Field label="Uskuna nomi">
-              <input
-                className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                value={orderForm.title}
-                onChange={(e) => setOrderForm({ ...orderForm, title: e.target.value })}
-                placeholder="Masalan: Konditsioner montaj"
-              />
-            </Field>
-            <Field label="Usta">
-              <select
-                className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                value={orderForm.technicianId}
-                onChange={(e) => setOrderForm({ ...orderForm, technicianId: e.target.value })}
-              >
-                <option value="">Tanlang...</option>
-                {technicians.filter((t) => t.status === 'active').map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Rejalashtirilgan ish kunlari">
-              <input
-                type="number"
-                min={1}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                value={orderForm.workDays}
-                onChange={(e) => setOrderForm({ ...orderForm, workDays: Number(e.target.value) })}
-              />
-            </Field>
+            {renderOrderFormFields(false)}
             <button type="button" onClick={handleCreateOrder} className="pos-btn-primary w-full" disabled={loading}>
               Yaratish
             </button>
@@ -685,8 +914,19 @@ export default function Production({
         </Modal>
       )}
 
+      {showEditOrder && (
+        <Modal title="Buyurtmani tahrirlash" onClose={() => { setShowEditOrder(false); setEditingOrderId(null); setOrderForm(emptyOrderForm()); }}>
+          <div className="space-y-4">
+            {renderOrderFormFields(true)}
+            <button type="button" onClick={handleUpdateOrder} className="pos-btn-primary w-full" disabled={loading}>
+              Saqlash
+            </button>
+          </div>
+        </Modal>
+      )}
+
       {showNewTech && (
-        <Modal title={editingTechId ? 'Ustani tahrirlash' : 'Yangi usta'} onClose={() => setShowNewTech(false)}>
+        <Modal title={editingTechId ? 'Ustani tahrirlash' : 'Yangi usta'} onClose={() => { setShowNewTech(false); setEditingTechId(null); setTechForm(emptyTechForm()); }}>
           <div className="space-y-4">
             <Field label="Ism">
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2" value={techForm.name} onChange={(e) => setTechForm({ ...techForm, name: e.target.value })} />
@@ -694,11 +934,36 @@ export default function Production({
             <Field label="Telefon">
               <input className="w-full border border-slate-200 rounded-lg px-3 py-2" value={techForm.phone} onChange={(e) => setTechForm({ ...techForm, phone: e.target.value })} />
             </Field>
+            <Field label="Standart ish haqi turi">
+              <select
+                className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                value={techForm.defaultLaborType}
+                onChange={(e) => setTechForm({ ...techForm, defaultLaborType: e.target.value as LaborType })}
+              >
+                <option value="daily">{LABOR_LABELS.daily}</option>
+                <option value="per_unit">{LABOR_LABELS.per_unit}</option>
+              </select>
+            </Field>
             <Field label="Kunlik haq (so'm)">
               <input type="number" min={0} className="w-full border border-slate-200 rounded-lg px-3 py-2" value={techForm.dailyRate} onChange={(e) => setTechForm({ ...techForm, dailyRate: Number(e.target.value) })} />
             </Field>
             <Field label="1 ta uskuna uchun haq (so'm)">
               <input type="number" min={0} className="w-full border border-slate-200 rounded-lg px-3 py-2" value={techForm.perUnitRate} onChange={(e) => setTechForm({ ...techForm, perUnitRate: Number(e.target.value) })} />
+            </Field>
+            {editingTechId && (
+              <Field label="Holat">
+                <select
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  value={techForm.status}
+                  onChange={(e) => setTechForm({ ...techForm, status: e.target.value as 'active' | 'inactive' })}
+                >
+                  <option value="active">Faol</option>
+                  <option value="inactive">Nofaol</option>
+                </select>
+              </Field>
+            )}
+            <Field label="Izoh">
+              <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" rows={2} value={techForm.notes} onChange={(e) => setTechForm({ ...techForm, notes: e.target.value })} />
             </Field>
             <button type="button" onClick={handleSaveTech} className="pos-btn-primary w-full" disabled={loading}>
               Saqlash

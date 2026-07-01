@@ -195,6 +195,8 @@ export async function deleteTechnician(id: string): Promise<void> {
 export async function createProductionOrder(data: {
   title: string;
   technicianId: string;
+  laborType?: 'daily' | 'per_unit';
+  laborQuantity?: number;
   workDays?: number;
   marginPercent?: number;
   notes?: string;
@@ -210,6 +212,8 @@ export async function updateProductionOrder(
   data: Partial<{
     title: string;
     technicianId: string;
+    laborType: 'daily' | 'per_unit';
+    laborQuantity: number;
     workDays: number;
     marginPercent: number;
     sellingPrice: number;

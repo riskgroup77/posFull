@@ -351,6 +351,13 @@ class TechnicianViewSet(viewsets.ModelViewSet):
     serializer_class = TechnicianSerializer
     permission_classes = [IsActiveUser, IsAdminOrManager]
 
+    def destroy(self, request, *args, **kwargs):
+        try:
+            production_services.delete_technician(kwargs['pk'])
+        except (Technician.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ProductionOrderViewSet(viewsets.ModelViewSet):
     queryset = ProductionOrder.objects.select_related('technician', 'created_by', 'sale').prefetch_related('items')
@@ -382,7 +389,11 @@ class ProductionOrderViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         try:
-            production_services.cancel_production_order(kwargs['pk'])
+            order = ProductionOrder.objects.get(pk=kwargs['pk'])
+            if order.status == ProductionOrder.STATUS_CANCELLED:
+                production_services.purge_production_order(kwargs['pk'])
+            else:
+                production_services.cancel_production_order(kwargs['pk'])
         except (ProductionOrder.DoesNotExist, ValueError) as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(status=status.HTTP_204_NO_CONTENT)

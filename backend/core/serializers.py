@@ -415,10 +415,15 @@ class LoginSerializer(serializers.Serializer):
 class TechnicianSerializer(serializers.ModelSerializer):
     dailyRate = serializers.DecimalField(source='daily_rate', max_digits=14, decimal_places=2)
     perUnitRate = serializers.DecimalField(source='per_unit_rate', max_digits=14, decimal_places=2)
+    defaultLaborType = serializers.ChoiceField(
+        source='default_labor_type',
+        choices=Technician.LABOR_TYPE_CHOICES,
+        required=False,
+    )
 
     class Meta:
         model = Technician
-        fields = ['id', 'name', 'phone', 'dailyRate', 'perUnitRate', 'status', 'notes']
+        fields = ['id', 'name', 'phone', 'dailyRate', 'perUnitRate', 'defaultLaborType', 'status', 'notes']
 
     def to_representation(self, instance):
         return {
@@ -427,6 +432,7 @@ class TechnicianSerializer(serializers.ModelSerializer):
             'phone': instance.phone,
             'dailyRate': float(instance.daily_rate),
             'perUnitRate': float(instance.per_unit_rate),
+            'defaultLaborType': instance.default_labor_type,
             'status': instance.status,
             'notes': instance.notes,
         }
@@ -467,7 +473,9 @@ class ProductionOrderSerializer(serializers.ModelSerializer):
     technicianId = serializers.UUIDField(source='technician_id', read_only=True)
     technicianName = serializers.CharField(source='technician.name', read_only=True)
     orderNo = serializers.CharField(source='order_no', read_only=True)
-    workDays = serializers.IntegerField(source='work_days')
+    laborType = serializers.ChoiceField(source='labor_type', choices=Technician.LABOR_TYPE_CHOICES)
+    laborQuantity = serializers.IntegerField(source='labor_quantity')
+    workDays = serializers.IntegerField(source='labor_quantity', read_only=True)
     dailyRateSnapshot = serializers.DecimalField(
         source='daily_rate_snapshot', max_digits=14, decimal_places=2, read_only=True,
     )
@@ -488,7 +496,8 @@ class ProductionOrderSerializer(serializers.ModelSerializer):
         model = ProductionOrder
         fields = [
             'id', 'orderNo', 'title', 'technicianId', 'technicianName', 'status',
-            'workDays', 'dailyRateSnapshot', 'perUnitRateSnapshot', 'marginPercent',
+            'laborType', 'laborQuantity', 'workDays',
+            'dailyRateSnapshot', 'perUnitRateSnapshot', 'marginPercent',
             'partsCost', 'laborCost', 'totalCost', 'sellingPrice', 'profit',
             'notes', 'saleId', 'createdById', 'createdByName', 'items',
             'createdAt', 'completedAt', 'soldAt',
@@ -511,7 +520,9 @@ class ProductionOrderSerializer(serializers.ModelSerializer):
             'technicianId': str(instance.technician_id),
             'technicianName': instance.technician.name,
             'status': instance.status,
-            'workDays': instance.work_days,
+            'laborType': instance.labor_type,
+            'laborQuantity': instance.labor_quantity,
+            'workDays': instance.labor_quantity,
             'dailyRateSnapshot': float(instance.daily_rate_snapshot),
             'perUnitRateSnapshot': float(instance.per_unit_rate_snapshot),
             'marginPercent': float(instance.margin_percent),
@@ -534,7 +545,12 @@ class ProductionOrderSerializer(serializers.ModelSerializer):
 class ProductionOrderCreateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255)
     technicianId = serializers.UUIDField()
-    workDays = serializers.IntegerField(required=False, default=1, min_value=1)
+    laborType = serializers.ChoiceField(
+        choices=Technician.LABOR_TYPE_CHOICES,
+        required=False,
+    )
+    laborQuantity = serializers.IntegerField(required=False, default=1, min_value=1)
+    workDays = serializers.IntegerField(required=False, min_value=1)
     marginPercent = serializers.DecimalField(max_digits=6, decimal_places=2, required=False)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
@@ -542,6 +558,8 @@ class ProductionOrderCreateSerializer(serializers.Serializer):
 class ProductionOrderUpdateSerializer(serializers.Serializer):
     title = serializers.CharField(max_length=255, required=False)
     technicianId = serializers.UUIDField(required=False)
+    laborType = serializers.ChoiceField(choices=Technician.LABOR_TYPE_CHOICES, required=False)
+    laborQuantity = serializers.IntegerField(required=False, min_value=1)
     workDays = serializers.IntegerField(required=False, min_value=1)
     marginPercent = serializers.DecimalField(max_digits=6, decimal_places=2, required=False)
     sellingPrice = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
