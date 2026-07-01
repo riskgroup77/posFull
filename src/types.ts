@@ -112,6 +112,13 @@ export interface InventoryMovement {
   dateTime: string;
   userId: string;
   userName: string;
+  /** Omborga kiritishda mahsulot narxlarini yangilash uchun */
+  supplyPrice?: number;
+  salePrice?: number;
+  minStock?: number;
+  shkaf?: string;
+  polka?: string;
+  description?: string;
 }
 
 export interface StoreSettings {

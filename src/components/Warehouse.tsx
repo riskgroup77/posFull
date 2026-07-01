@@ -10,6 +10,12 @@ import {
   prepareImportFromRows,
   buildColumnMappingsFromHeaders,
 } from '../utils/importTemplate';
+import {
+  inputPriceToUzs,
+  uzsToInputDisplay,
+  convertPriceInput,
+  type PriceCurrency,
+} from '../utils/currency';
 import { 
   Package, 
   Plus, 
@@ -82,17 +88,19 @@ export default function Warehouse({
   // Additional fields for stock-in (Omborga kiritish)
   const [movementSupplyPrice, setMovementSupplyPrice] = useState<string>('');
   const [movementSalePrice, setMovementSalePrice] = useState<string>('');
+  const [movementPriceCurrency, setMovementPriceCurrency] = useState<PriceCurrency>('uzs');
   const [movementMinStock, setMovementMinStock] = useState<string>('');
   const [movementShkaf, setMovementShkaf] = useState<string>('');
   const [movementPolka, setMovementPolka] = useState<string>('');
   const [movementDesc, setMovementDesc] = useState<string>('');
 
   React.useEffect(() => {
+    const rate = settings.usdRate || 12800;
     if (selectedProductId) {
       const p = products.find(prod => prod.id === selectedProductId);
       if (p) {
-        setMovementSupplyPrice(p.supplyPrice ? String(p.supplyPrice) : '');
-        setMovementSalePrice(p.salePrice ? String(p.salePrice) : '');
+        setMovementSupplyPrice(uzsToInputDisplay(p.supplyPrice, movementPriceCurrency, rate));
+        setMovementSalePrice(uzsToInputDisplay(p.salePrice, movementPriceCurrency, rate));
         setMovementMinStock(p.minStock ? String(p.minStock) : '5');
         setMovementShkaf(p.shkaf || '');
         setMovementPolka(p.polka || '');
@@ -106,7 +114,15 @@ export default function Warehouse({
       setMovementPolka('');
       setMovementDesc('');
     }
-  }, [selectedProductId, products]);
+  }, [selectedProductId, products, movementPriceCurrency, settings.usdRate]);
+
+  const handleMovementCurrencyChange = (next: PriceCurrency) => {
+    if (next === movementPriceCurrency) return;
+    const rate = settings.usdRate || 12800;
+    setMovementSupplyPrice((v) => convertPriceInput(v, movementPriceCurrency, next, rate));
+    setMovementSalePrice((v) => convertPriceInput(v, movementPriceCurrency, next, rate));
+    setMovementPriceCurrency(next);
+  };
 
   // Selected barcode modal
   const [selectedBarcodeProduct, setSelectedBarcodeProduct] = useState<Product | null>(null);
@@ -380,7 +396,14 @@ export default function Warehouse({
       return;
     }
 
-    // Process movement
+    const rate = settings.usdRate || 12800;
+    const supplyUzs = movementType === 'in' && movementSupplyPrice !== ''
+      ? inputPriceToUzs(movementSupplyPrice, movementPriceCurrency, rate)
+      : undefined;
+    const saleUzs = movementType === 'in' && movementSalePrice !== ''
+      ? inputPriceToUzs(movementSalePrice, movementPriceCurrency, rate)
+      : undefined;
+
     const newMovement: InventoryMovement = {
       id: `mov-${Date.now()}`,
       productId: product.id,
@@ -391,30 +414,20 @@ export default function Warehouse({
       docNo: movementDoc.trim() || `DOC-${Date.now().toString().slice(-6)}`,
       dateTime: new Date().toISOString(),
       userId: currentUser.id,
-      userName: currentUser.name
+      userName: currentUser.name,
+      ...(movementType === 'in' && {
+        supplyPrice: supplyUzs,
+        salePrice: saleUzs,
+        minStock: parseFloat(movementMinStock) || product.minStock || 5,
+        shkaf: movementShkaf.trim() || product.shkaf || '',
+        polka: movementPolka.trim() || product.polka || '',
+        description: movementDesc.trim() || product.description || '',
+      }),
     };
 
     onAddMovement(newMovement);
 
-    // Apply stock delta in products state
-    const delta = movementType === 'in' ? qtyNum : -qtyNum;
-    const updatedProduct: Product = {
-      ...product,
-      stock: product.stock + delta
-    };
-
-    if (movementType === 'in') {
-      updatedProduct.supplyPrice = parseFloat(movementSupplyPrice) || product.supplyPrice || 0;
-      updatedProduct.salePrice = parseFloat(movementSalePrice) || product.salePrice || 0;
-      updatedProduct.minStock = parseFloat(movementMinStock) || product.minStock || 5;
-      updatedProduct.shkaf = movementShkaf.trim() || product.shkaf || '';
-      updatedProduct.polka = movementPolka.trim() || product.polka || '';
-      updatedProduct.description = movementDesc.trim() || product.description || '';
-    }
-
-    onUpdateProduct(updatedProduct);
-
-    alert("Omborga muvaffaqiyatli kiritildi!");
+    alert(movementType === 'in' ? "Omborga muvaffaqiyatli kiritildi!" : "Ombordan muvaffaqiyatli chiqarildi!");
     setShowMovementModal(false);
     setSelectedProductId('');
     setMovementQty('');
@@ -425,6 +438,7 @@ export default function Warehouse({
     setMovementShkaf('');
     setMovementPolka('');
     setMovementDesc('');
+    setMovementPriceCurrency('uzs');
   };
 
   // Reconciliation processing
@@ -1490,12 +1504,48 @@ export default function Warehouse({
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
                     Tovarni sozlash (Qolgan barcha ma'lumotlar):
                   </span>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1.5">Narx kiritish valyutasi</label>
+                    <div className="flex rounded-lg border border-slate-300 overflow-hidden bg-white">
+                      <button
+                        type="button"
+                        onClick={() => handleMovementCurrencyChange('uzs')}
+                        className={`flex-1 py-2 text-xs font-bold transition-colors ${
+                          movementPriceCurrency === 'uzs'
+                            ? 'bg-blue-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        So&apos;m (UZS)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMovementCurrencyChange('usd')}
+                        className={`flex-1 py-2 text-xs font-bold transition-colors ${
+                          movementPriceCurrency === 'usd'
+                            ? 'bg-emerald-600 text-white'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        Dollar (USD)
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      1 USD = {new Intl.NumberFormat('uz-UZ').format(settings.usdRate || 12800)} so&apos;m
+                      {movementPriceCurrency === 'usd' && ' — narxlar avtomatik so\'mga saqlanadi'}
+                    </p>
+                  </div>
                   
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Xarid Narxi (so'm)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        Xarid narxi ({movementPriceCurrency === 'usd' ? 'USD' : "so'm"})
+                      </label>
                       <input
                         type="number"
+                        min={0}
+                        step={movementPriceCurrency === 'usd' ? '0.01' : '1'}
                         placeholder="0"
                         value={movementSupplyPrice}
                         onChange={(e) => setMovementSupplyPrice(e.target.value)}
@@ -1503,9 +1553,13 @@ export default function Warehouse({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-600 mb-1">Sotish Narxi (so'm)</label>
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                        Sotish narxi ({movementPriceCurrency === 'usd' ? 'USD' : "so'm"})
+                      </label>
                       <input
                         type="number"
+                        min={0}
+                        step={movementPriceCurrency === 'usd' ? '0.01' : '1'}
                         placeholder="0"
                         value={movementSalePrice}
                         onChange={(e) => setMovementSalePrice(e.target.value)}
@@ -1513,6 +1567,28 @@ export default function Warehouse({
                       />
                     </div>
                   </div>
+                  {movementPriceCurrency === 'usd' && (movementSupplyPrice || movementSalePrice) && (
+                    <div className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-2">
+                      {movementSupplyPrice && (
+                        <div>
+                          Xarid: ${movementSupplyPrice} ≈{' '}
+                          {new Intl.NumberFormat('uz-UZ').format(
+                            inputPriceToUzs(movementSupplyPrice, 'usd', settings.usdRate || 12800),
+                          )}{' '}
+                          so&apos;m
+                        </div>
+                      )}
+                      {movementSalePrice && (
+                        <div>
+                          Sotuv: ${movementSalePrice} ≈{' '}
+                          {new Intl.NumberFormat('uz-UZ').format(
+                            inputPriceToUzs(movementSalePrice, 'usd', settings.usdRate || 12800),
+                          )}{' '}
+                          so&apos;m
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>

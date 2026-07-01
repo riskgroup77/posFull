@@ -274,6 +274,12 @@ export default function App() {
         type: m.type,
         reason: m.reason,
         docNo: m.docNo,
+        supplyPrice: m.supplyPrice,
+        salePrice: m.salePrice,
+        minStock: m.minStock,
+        shkaf: m.shkaf,
+        polka: m.polka,
+        description: m.description,
       });
       await loadBootstrap();
     } catch (err) {
