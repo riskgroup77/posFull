@@ -58,6 +58,12 @@ export default function SettingsComponent({
     e.preventDefault();
     if (!storeName.trim()) return;
 
+    const parsedUsd = parseFloat(String(usdRate).replace(/\s/g, '').replace(',', '.'));
+    if (!String(usdRate).trim() || Number.isNaN(parsedUsd) || parsedUsd <= 0) {
+      alert("Valyuta kursi noto'g'ri — 0 dan katta son kiriting (masalan: 12800 yoki 12500.5)");
+      return;
+    }
+
     onUpdateSettings({
       ...settings,
       storeName: storeName.trim(),
@@ -67,7 +73,7 @@ export default function SettingsComponent({
       receiptFooter: receiptFooter.trim(),
       defaultDebtLimit: parseFloat(defaultLimit) || 0,
       minStockThresholdDefault: parseFloat(minStockDefault) || 5,
-      usdRate: parseFloat(usdRate) || 12800,
+      usdRate: parsedUsd,
       productionMarginPercent: parseFloat(productionMargin) || 20,
     });
 
@@ -245,17 +251,15 @@ export default function SettingsComponent({
                       </label>
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <input
-                          type="number"
-                          min={1}
-                          step={100}
-                          required
+                          type="text"
+                          inputMode="decimal"
                           value={usdRate}
                           onChange={(e) => setUsdRate(e.target.value)}
                           className="w-full sm:max-w-xs px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold"
                           placeholder="12800"
                         />
                         <p className="text-[11px] text-slate-500">
-                          Masalan: 12 800 — barcha narxlar so'mda saqlanadi, USD faqat ko'rsatish uchun hisoblanadi.
+                          Istalgan kursni kiriting (12 800, 12500.5 va hokazo). Narxlar so&apos;mda saqlanadi, USD faqat ko&apos;rsatish uchun.
                         </p>
                       </div>
                     </div>
