@@ -175,6 +175,7 @@ def update_production_order(order_id, data):
 def add_part_to_order(user, order_id, product_id, quantity):
     order = ProductionOrder.objects.select_for_update().get(pk=order_id)
     _ensure_parts_editable(order)
+    qty = _money(quantity)
     if qty <= 0:
         raise ValueError('Miqdor noto\'g\'ri')
 
