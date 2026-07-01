@@ -520,7 +520,7 @@ class ProductionOrderSerializer(serializers.ModelSerializer):
             'technicianId': str(instance.technician_id),
             'technicianName': instance.technician.name,
             'status': instance.status,
-            'laborType': instance.labor_type,
+            'laborType': instance.labor_type or Technician.LABOR_DAILY,
             'laborQuantity': instance.labor_quantity,
             'workDays': instance.labor_quantity,
             'dailyRateSnapshot': float(instance.daily_rate_snapshot),

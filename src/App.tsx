@@ -91,6 +91,37 @@ export default function App() {
     }
   }, []);
 
+  /** Ishlab chiqarish bo'limi uchun tez yangilash (butun sahifa bloklanmaydi) */
+  const refreshProductionData = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const data = await fetchBootstrap();
+      setTechnicians(data.technicians ?? []);
+      setProductionOrders(data.productionOrders ?? []);
+      setProducts(data.products);
+      setMovements(data.movements);
+      if (!opts?.silent) {
+        setUsers(data.users);
+        setCategories(data.categories);
+        setCustomers(data.customers);
+        setSales(data.sales);
+        setDebts(data.debts);
+        setDebtPayments(data.debtPayments);
+        setSettings(data.settings);
+      }
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, []);
+
+  const patchProductionData = useCallback((patch: {
+    technicians?: Technician[];
+    productionOrders?: ProductionOrder[];
+  }) => {
+    if (patch.technicians) setTechnicians(patch.technicians);
+    if (patch.productionOrders) setProductionOrders(patch.productionOrders);
+  }, []);
+
   useEffect(() => {
     if (!localStorage.getItem('pos_access_token')) {
       setCurrentUser(null);
@@ -453,7 +484,8 @@ export default function App() {
               productionOrders={productionOrders}
               customers={customers.filter((c) => c.status === 'active')}
               settings={settings}
-              onRefresh={loadBootstrap}
+              onRefresh={refreshProductionData}
+              onPatchData={patchProductionData}
             />
           )}
 

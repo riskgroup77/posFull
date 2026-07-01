@@ -44,7 +44,11 @@ interface ProductionProps {
   productionOrders: ProductionOrder[];
   customers: Customer[];
   settings: StoreSettings;
-  onRefresh: () => Promise<void>;
+  onRefresh: (opts?: { silent?: boolean }) => Promise<void>;
+  onPatchData?: (patch: {
+    technicians?: Technician[];
+    productionOrders?: ProductionOrder[];
+  }) => void;
 }
 
 const STATUS_LABELS: Record<ProductionOrderStatus, string> = {
@@ -108,12 +112,14 @@ export default function Production({
   customers,
   settings,
   onRefresh,
+  onPatchData,
 }: ProductionProps) {
   const [subTab, setSubTab] = useState<'orders' | 'technicians' | 'report'>('orders');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [reportMonth, setReportMonth] = useState(currentMonth());
   const [report, setReport] = useState<ProductionReport | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showEditOrder, setShowEditOrder] = useState(false);
@@ -161,20 +167,22 @@ export default function Production({
     };
   };
 
-  const openEditOrder = (order: ProductionOrder) => {
+  const openEditOrder = (order: ProductionOrder, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setEditingOrderId(order.id);
     setOrderForm({
       title: order.title,
       technicianId: order.technicianId,
-      laborType: order.laborType,
-      laborQuantity: order.laborQuantity,
+      laborType: order.laborType ?? 'daily',
+      laborQuantity: order.laborQuantity ?? order.workDays ?? 1,
       notes: order.notes || '',
       useTechnicianDefault: false,
     });
     setShowEditOrder(true);
   };
 
-  const handleDeleteOrder = (order: ProductionOrder) => {
+  const handleDeleteOrder = (order: ProductionOrder, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (order.status === 'sold') {
       alert('Sotilgan buyurtmani o\'chirib bo\'lmaydi');
       return;
@@ -183,8 +191,11 @@ export default function Production({
       ? 'Buyurtmani butunlay o\'chirish?'
       : 'Buyurtmani bekor qilish va qismlarni omborga qaytarish?';
     if (!confirm(msg)) return;
-    run(async () => {
+    void run(async () => {
       await cancelProductionOrder(order.id);
+      onPatchData?.({
+        productionOrders: productionOrders.filter((o) => o.id !== order.id),
+      });
       if (selectedOrderId === order.id) setSelectedOrderId(null);
     });
   };
@@ -194,24 +205,25 @@ export default function Production({
   };
 
   const run = async (fn: () => Promise<void>) => {
-    setLoading(true);
+    if (busy) return;
+    setBusy(true);
     try {
       await fn();
-      await onRefresh();
+      void onRefresh({ silent: true });
     } catch (err) {
       showError(err);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
   useEffect(() => {
     if (subTab !== 'report') return;
-    setLoading(true);
+    setReportLoading(true);
     fetchProductionReport(reportMonth)
       .then(setReport)
       .catch(showError)
-      .finally(() => setLoading(false));
+      .finally(() => setReportLoading(false));
   }, [subTab, reportMonth]);
 
   useEffect(() => {
@@ -226,32 +238,37 @@ export default function Production({
   }, [selectedOrder?.id, selectedOrder?.sellingPrice]);
 
   const handleCreateOrder = () =>
-    run(async () => {
-      if (!orderForm.title || !orderForm.technicianId) {
-        throw new Error('Nomi va usta tanlanishi shart');
-      }
+    void run(async () => {
+      if (!orderForm.title.trim()) throw new Error('Buyurtma nomi kerak');
+      if (!orderForm.technicianId) throw new Error('Usta tanlanishi shart');
+      if (orderForm.laborQuantity < 1) throw new Error('Miqdor kamida 1 bo\'lishi kerak');
       const order = await createProductionOrder({
-        title: orderForm.title,
+        title: orderForm.title.trim(),
         technicianId: orderForm.technicianId,
         laborType: orderForm.laborType,
         laborQuantity: orderForm.laborQuantity,
         marginPercent: settings.productionMarginPercent ?? 20,
         notes: orderForm.notes,
       });
+      onPatchData?.({ productionOrders: [order, ...productionOrders] });
       setShowNewOrder(false);
       setOrderForm(emptyOrderForm());
       setSelectedOrderId(order.id);
     });
 
   const handleUpdateOrder = () =>
-    run(async () => {
-      if (!editingOrderId) return;
-      await updateProductionOrder(editingOrderId, {
-        title: orderForm.title,
+    void run(async () => {
+      if (!editingOrderId) throw new Error('Buyurtma topilmadi');
+      if (!orderForm.title.trim()) throw new Error('Buyurtma nomi kerak');
+      const updated = await updateProductionOrder(editingOrderId, {
+        title: orderForm.title.trim(),
         technicianId: orderForm.technicianId,
         laborType: orderForm.laborType,
         laborQuantity: orderForm.laborQuantity,
         notes: orderForm.notes,
+      });
+      onPatchData?.({
+        productionOrders: productionOrders.map((o) => (o.id === updated.id ? updated : o)),
       });
       setShowEditOrder(false);
       setEditingOrderId(null);
@@ -259,22 +276,25 @@ export default function Production({
     });
 
   const handleSaveTech = () =>
-    run(async () => {
-      if (!techForm.name) throw new Error('Usta ismi kerak');
+    void run(async () => {
+      if (!techForm.name.trim()) throw new Error('Usta ismi kerak');
       if (editingTechId) {
-        await updateTechnician({
+        const saved = await updateTechnician({
           id: editingTechId,
-          name: techForm.name,
+          name: techForm.name.trim(),
           phone: techForm.phone,
           dailyRate: techForm.dailyRate,
           perUnitRate: techForm.perUnitRate,
           defaultLaborType: techForm.defaultLaborType,
           status: techForm.status,
           notes: techForm.notes,
+        });
+        onPatchData?.({
+          technicians: technicians.map((t) => (t.id === saved.id ? saved : t)),
         });
       } else {
-        await createTechnician({
-          name: techForm.name,
+        const saved = await createTechnician({
+          name: techForm.name.trim(),
           phone: techForm.phone,
           dailyRate: techForm.dailyRate,
           perUnitRate: techForm.perUnitRate,
@@ -282,30 +302,47 @@ export default function Production({
           status: techForm.status,
           notes: techForm.notes,
         });
+        onPatchData?.({ technicians: [...technicians, saved] });
       }
       setShowNewTech(false);
       setEditingTechId(null);
       setTechForm(emptyTechForm());
     });
 
+  const handleDeleteTech = (t: Technician) => {
+    if (!confirm(`"${t.name}" ustasini o'chirish?`)) return;
+    void run(async () => {
+      await deleteTechnician(t.id);
+      onPatchData?.({ technicians: technicians.filter((x) => x.id !== t.id) });
+    });
+  };
+
   const handleAddPart = () =>
-    run(async () => {
-      if (!selectedOrder || !partProductId || partQty <= 0) return;
-      await addPartToProductionOrder(selectedOrder.id, partProductId, partQty);
+    void run(async () => {
+      if (!selectedOrder) throw new Error('Buyurtma tanlanmagan');
+      if (!partProductId) throw new Error('Qism tanlang');
+      if (partQty <= 0) throw new Error('Miqdor noto\'g\'ri');
+      const updated = await addPartToProductionOrder(selectedOrder.id, partProductId, partQty);
+      onPatchData?.({
+        productionOrders: productionOrders.map((o) => (o.id === updated.id ? updated : o)),
+      });
       setPartProductId('');
       setPartQty(1);
     });
 
   const handleComplete = () =>
-    run(async () => {
-      if (!selectedOrder) return;
-      await completeProductionOrder(selectedOrder.id);
+    void run(async () => {
+      if (!selectedOrder) throw new Error('Buyurtma tanlanmagan');
+      const updated = await completeProductionOrder(selectedOrder.id);
+      onPatchData?.({
+        productionOrders: productionOrders.map((o) => (o.id === updated.id ? updated : o)),
+      });
     });
 
   const handleSell = () =>
-    run(async () => {
-      if (!selectedOrder) return;
-      await sellProductionOrder(selectedOrder.id, {
+    void run(async () => {
+      if (!selectedOrder) throw new Error('Buyurtma tanlanmagan');
+      const { order } = await sellProductionOrder(selectedOrder.id, {
         payment_type: sellForm.paymentType,
         customerId: sellForm.customerId || undefined,
         cashPaid: sellForm.cashPaid,
@@ -314,12 +351,16 @@ export default function Production({
         sellingPrice: sellForm.sellingPrice,
         debtDueDate: sellForm.debtDueDate || undefined,
       });
+      onPatchData?.({
+        productionOrders: productionOrders.map((o) => (o.id === order.id ? order : o)),
+      });
       setShowSell(false);
     });
 
   const laborBreakdown = (order: ProductionOrder) => {
-    const qty = order.laborQuantity;
-    if (order.laborType === 'daily') {
+    const qty = order.laborQuantity ?? order.workDays ?? 1;
+    const laborType = order.laborType ?? 'daily';
+    if (laborType === 'daily') {
       const daily = order.dailyRateSnapshot * qty;
       return { type: 'daily' as LaborType, qty, rate: order.dailyRateSnapshot, total: daily };
     }
@@ -437,9 +478,19 @@ export default function Production({
               <h2 className="text-lg font-bold text-slate-800">Ishlab chiqarish buyurtmalari</h2>
               <button
                 type="button"
-                onClick={() => setShowNewOrder(true)}
+                onClick={() => {
+                  if (technicians.filter((t) => t.status === 'active').length === 0) {
+                    alert('Avval kamida bitta usta qo\'shing (Ustalar bo\'limi).');
+                    setSubTab('technicians');
+                    setEditingTechId(null);
+                    setTechForm(emptyTechForm());
+                    setShowNewTech(true);
+                    return;
+                  }
+                  setOrderForm(emptyOrderForm());
+                  setShowNewOrder(true);
+                }}
                 className="pos-btn-primary text-xs py-2 px-3"
-                disabled={technicians.filter((t) => t.status === 'active').length === 0}
               >
                 <Plus className="w-4 h-4" />
                 Yangi
@@ -464,7 +515,7 @@ export default function Production({
                       <div>
                         <p className="font-bold text-slate-800">{order.title}</p>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          {order.orderNo} · {order.technicianName} · {LABOR_LABELS[order.laborType]}
+                          {order.orderNo} · {order.technicianName} · {LABOR_LABELS[order.laborType ?? 'daily']}
                         </p>
                       </div>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[order.status]}`}>
@@ -479,7 +530,7 @@ export default function Production({
                     {canEditOrder(order) && (
                       <button
                         type="button"
-                        onClick={() => openEditOrder(order)}
+                        onClick={(e) => openEditOrder(order, e)}
                         className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
                       >
                         <Pencil className="w-3.5 h-3.5" />
@@ -489,7 +540,7 @@ export default function Production({
                     {order.status !== 'sold' && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteOrder(order)}
+                        onClick={(e) => handleDeleteOrder(order, e)}
                         className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-800"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -515,8 +566,8 @@ export default function Production({
                     <h3 className="text-xl font-bold text-slate-900">{selectedOrder.title}</h3>
                     <p className="text-sm text-slate-500 mt-1">
                       {selectedOrder.orderNo} · Usta: <strong>{selectedOrder.technicianName}</strong>
-                      {' · '}{LABOR_LABELS[selectedOrder.laborType]}
-                      {' · '}{LABOR_QTY_LABELS[selectedOrder.laborType]}: <strong>{selectedOrder.laborQuantity}</strong>
+                      {' · '}{LABOR_LABELS[selectedOrder.laborType ?? 'daily']}
+                      {' · '}{LABOR_QTY_LABELS[selectedOrder.laborType ?? 'daily']}: <strong>{selectedOrder.laborQuantity ?? selectedOrder.workDays ?? 1}</strong>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -599,7 +650,7 @@ export default function Production({
                                       run(() => removePartFromProductionOrder(selectedOrder.id, item.id))
                                     }
                                     className="text-red-500 hover:text-red-700"
-                                    disabled={loading}
+                                    disabled={busy}
                                   >
                                     <Trash2 className="w-4 h-4" />
                                   </button>
@@ -640,7 +691,7 @@ export default function Production({
                           onChange={(e) => setPartQty(Number(e.target.value))}
                         />
                       </div>
-                      <button type="button" onClick={handleAddPart} className="pos-btn-primary py-2" disabled={loading}>
+                      <button type="button" onClick={handleAddPart} className="pos-btn-primary py-2" disabled={busy}>
                         Qo&apos;shish
                       </button>
                     </div>
@@ -650,7 +701,7 @@ export default function Production({
                 <div className="px-6 pb-6 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                   {(selectedOrder.status === 'draft' || selectedOrder.status === 'in_progress') && (
                     <>
-                      <button type="button" onClick={handleComplete} className="pos-btn-primary" disabled={loading}>
+                      <button type="button" onClick={handleComplete} className="pos-btn-primary" disabled={busy}>
                         <CheckCircle className="w-4 h-4" />
                         Yakunlash
                       </button>
@@ -658,7 +709,7 @@ export default function Production({
                         type="button"
                         onClick={() => handleDeleteOrder(selectedOrder)}
                         className="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50"
-                        disabled={loading}
+                        disabled={busy}
                       >
                         Bekor qilish
                       </button>
@@ -666,11 +717,11 @@ export default function Production({
                   )}
                   {selectedOrder.status === 'completed' && (
                     <>
-                      <button type="button" onClick={() => openEditOrder(selectedOrder)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50" disabled={loading}>
+                      <button type="button" onClick={() => openEditOrder(selectedOrder)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold hover:bg-slate-50" disabled={busy}>
                         <Pencil className="w-4 h-4 inline mr-1" />
                         Tahrirlash
                       </button>
-                      <button type="button" onClick={() => setShowSell(true)} className="pos-btn-primary" disabled={loading}>
+                      <button type="button" onClick={() => setShowSell(true)} className="pos-btn-primary" disabled={busy}>
                         <ShoppingCart className="w-4 h-4" />
                         Sotish
                       </button>
@@ -678,7 +729,7 @@ export default function Production({
                         type="button"
                         onClick={() => handleDeleteOrder(selectedOrder)}
                         className="px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50"
-                        disabled={loading}
+                        disabled={busy}
                       >
                         Bekor qilish
                       </button>
@@ -763,9 +814,7 @@ export default function Production({
                   <button
                     type="button"
                     className="flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline"
-                    onClick={() => {
-                      if (confirm(`"${t.name}" ustasini o'chirish?`)) run(() => deleteTechnician(t.id));
-                    }}
+                    onClick={() => handleDeleteTech(t)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     O&apos;chirish
@@ -789,7 +838,11 @@ export default function Production({
             />
           </div>
 
-          {report && (
+          {reportLoading && (
+            <p className="text-sm text-slate-500">Hisobot yuklanmoqda...</p>
+          )}
+
+          {report && !reportLoading && (
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {[
@@ -907,8 +960,8 @@ export default function Production({
         <Modal title="Yangi ishlab chiqarish buyurtmasi" onClose={() => { setShowNewOrder(false); setOrderForm(emptyOrderForm()); }}>
           <div className="space-y-4">
             {renderOrderFormFields(false)}
-            <button type="button" onClick={handleCreateOrder} className="pos-btn-primary w-full" disabled={loading}>
-              Yaratish
+            <button type="button" onClick={handleCreateOrder} className="pos-btn-primary w-full" disabled={busy}>
+              {busy ? 'Saqlanmoqda...' : 'Yaratish'}
             </button>
           </div>
         </Modal>
@@ -918,8 +971,8 @@ export default function Production({
         <Modal title="Buyurtmani tahrirlash" onClose={() => { setShowEditOrder(false); setEditingOrderId(null); setOrderForm(emptyOrderForm()); }}>
           <div className="space-y-4">
             {renderOrderFormFields(true)}
-            <button type="button" onClick={handleUpdateOrder} className="pos-btn-primary w-full" disabled={loading}>
-              Saqlash
+            <button type="button" onClick={handleUpdateOrder} className="pos-btn-primary w-full" disabled={busy}>
+              {busy ? 'Saqlanmoqda...' : 'Saqlash'}
             </button>
           </div>
         </Modal>
@@ -965,8 +1018,8 @@ export default function Production({
             <Field label="Izoh">
               <textarea className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" rows={2} value={techForm.notes} onChange={(e) => setTechForm({ ...techForm, notes: e.target.value })} />
             </Field>
-            <button type="button" onClick={handleSaveTech} className="pos-btn-primary w-full" disabled={loading}>
-              Saqlash
+            <button type="button" onClick={handleSaveTech} className="pos-btn-primary w-full" disabled={busy}>
+              {busy ? 'Saqlanmoqda...' : 'Saqlash'}
             </button>
           </div>
         </Modal>
@@ -1036,7 +1089,7 @@ export default function Production({
               <p>Tannarx: <strong>{selectedOrder.totalCost.toLocaleString()}</strong> so&apos;m</p>
               <p>Taxminiy foyda: <strong>{(sellForm.sellingPrice - sellForm.discount - selectedOrder.totalCost).toLocaleString()}</strong> so&apos;m</p>
             </div>
-            <button type="button" onClick={handleSell} className="pos-btn-primary w-full" disabled={loading}>
+            <button type="button" onClick={handleSell} className="pos-btn-primary w-full" disabled={busy}>
               Sotuvni tasdiqlash
             </button>
           </div>

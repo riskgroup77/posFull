@@ -182,9 +182,10 @@ export async function createTechnician(data: Omit<Technician, 'id'>): Promise<Te
 }
 
 export async function updateTechnician(tech: Technician): Promise<Technician> {
-  return apiRequest<Technician>(`/technicians/${tech.id}/`, {
-    method: 'PUT',
-    body: JSON.stringify(tech),
+  const { id, ...data } = tech;
+  return apiRequest<Technician>(`/technicians/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
   });
 }
 
