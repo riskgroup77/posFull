@@ -9,6 +9,8 @@ import {
   DebtPayment,
   InventoryMovement,
   StoreSettings,
+  Technician,
+  ProductionOrder,
 } from './types';
 import { DEFAULT_SETTINGS } from './data';
 import { Bell, Plus } from 'lucide-react';
@@ -42,6 +44,7 @@ import POS from './components/POS';
 import Warehouse from './components/Warehouse';
 import Customers from './components/Customers';
 import Reports from './components/Reports';
+import Production from './components/Production';
 import SettingsComponent from './components/Settings';
 
 export default function App() {
@@ -64,6 +67,8 @@ export default function App() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [debtPayments, setDebtPayments] = useState<DebtPayment[]>([]);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [productionOrders, setProductionOrders] = useState<ProductionOrder[]>([]);
   const [settings, setSettings] = useState<StoreSettings>(DEFAULT_SETTINGS);
 
   const loadBootstrap = useCallback(async () => {
@@ -78,6 +83,8 @@ export default function App() {
       setDebts(data.debts);
       setDebtPayments(data.debtPayments);
       setMovements(data.movements);
+      setTechnicians(data.technicians ?? []);
+      setProductionOrders(data.productionOrders ?? []);
       setSettings(data.settings);
     } finally {
       setLoading(false);
@@ -313,6 +320,7 @@ export default function App() {
     activeTab === 'pos' ? 'Sotuv (POS)' :
     activeTab === 'warehouse' ? 'Ombor' :
     activeTab === 'customers' ? 'Mijozlar va Qarzlar' :
+    activeTab === 'production' ? 'Ishlab chiqarish' :
     activeTab === 'reports' ? 'Hisobotlar' : 'Sozlamalar';
 
   return (
@@ -429,6 +437,17 @@ export default function App() {
               onAddCustomer={handleAddCustomer}
               onUpdateCustomer={handleUpdateCustomer}
               onRepayDebt={handleRepayDebt}
+            />
+          )}
+
+          {activeTab === 'production' && (
+            <Production
+              products={products}
+              technicians={technicians}
+              productionOrders={productionOrders}
+              customers={customers.filter((c) => c.status === 'active')}
+              settings={settings}
+              onRefresh={loadBootstrap}
             />
           )}
 

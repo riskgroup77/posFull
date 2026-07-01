@@ -8,6 +8,9 @@ import {
   DebtPayment,
   InventoryMovement,
   StoreSettings,
+  Technician,
+  ProductionOrder,
+  ProductionReport,
 } from '../types';
 import { apiRequest, setTokens, clearTokens } from './client';
 
@@ -21,6 +24,8 @@ export interface BootstrapData {
   debtPayments: DebtPayment[];
   movements: InventoryMovement[];
   settings: StoreSettings;
+  technicians: Technician[];
+  productionOrders: ProductionOrder[];
 }
 
 export interface LoginResponse {
@@ -167,4 +172,110 @@ export async function updateUser(id: string, data: Partial<User>): Promise<User>
 
 export async function resetAllData(): Promise<void> {
   await apiRequest('/admin/reset-data/', { method: 'POST' });
+}
+
+export async function createTechnician(data: Omit<Technician, 'id'>): Promise<Technician> {
+  return apiRequest<Technician>('/technicians/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateTechnician(tech: Technician): Promise<Technician> {
+  return apiRequest<Technician>(`/technicians/${tech.id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(tech),
+  });
+}
+
+export async function deleteTechnician(id: string): Promise<void> {
+  await apiRequest(`/technicians/${id}/`, { method: 'DELETE' });
+}
+
+export async function createProductionOrder(data: {
+  title: string;
+  technicianId: string;
+  workDays?: number;
+  marginPercent?: number;
+  notes?: string;
+}): Promise<ProductionOrder> {
+  return apiRequest<ProductionOrder>('/production-orders/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateProductionOrder(
+  id: string,
+  data: Partial<{
+    title: string;
+    technicianId: string;
+    workDays: number;
+    marginPercent: number;
+    sellingPrice: number;
+    notes: string;
+  }>,
+): Promise<ProductionOrder> {
+  return apiRequest<ProductionOrder>(`/production-orders/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function cancelProductionOrder(id: string): Promise<void> {
+  await apiRequest(`/production-orders/${id}/`, { method: 'DELETE' });
+}
+
+export async function addPartToProductionOrder(
+  orderId: string,
+  productId: string,
+  quantity: number,
+): Promise<ProductionOrder> {
+  return apiRequest<ProductionOrder>(`/production-orders/${orderId}/add-part/`, {
+    method: 'POST',
+    body: JSON.stringify({ productId, quantity }),
+  });
+}
+
+export async function removePartFromProductionOrder(
+  orderId: string,
+  itemId: string,
+): Promise<ProductionOrder> {
+  return apiRequest<ProductionOrder>(`/production-orders/${orderId}/remove-part/`, {
+    method: 'POST',
+    body: JSON.stringify({ itemId }),
+  });
+}
+
+export async function completeProductionOrder(
+  orderId: string,
+  sellingPrice?: number,
+): Promise<ProductionOrder> {
+  return apiRequest<ProductionOrder>(`/production-orders/${orderId}/complete/`, {
+    method: 'POST',
+    body: JSON.stringify(sellingPrice != null ? { sellingPrice } : {}),
+  });
+}
+
+export async function sellProductionOrder(
+  orderId: string,
+  data: {
+    payment_type: 'cash' | 'debt' | 'mixed';
+    customerId?: string;
+    cashPaid?: number;
+    debtAmount?: number;
+    discount?: number;
+    sellingPrice?: number;
+    debtDueDate?: string;
+  },
+): Promise<{ order: ProductionOrder; sale: Sale }> {
+  return apiRequest(`/production-orders/${orderId}/sell/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchProductionReport(month?: string): Promise<ProductionReport> {
+  const q = month ? `?month=${encodeURIComponent(month)}` : '';
+  return apiRequest<ProductionReport>(`/production/reports${q}`);
 }

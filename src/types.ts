@@ -107,7 +107,7 @@ export interface InventoryMovement {
   productName: string;
   quantity: number;
   type: 'in' | 'out';
-  reason: 'new_stock' | 'return' | 'sale' | 'loss' | 'inventory_check';
+  reason: 'new_stock' | 'return' | 'sale' | 'loss' | 'inventory_check' | 'production';
   docNo: string;
   dateTime: string;
   userId: string;
@@ -129,4 +129,77 @@ export interface StoreSettings {
   defaultDebtLimit: number;
   limitBlockSales: boolean;
   mandatoryDebtDueDate: boolean;
+  productionMarginPercent?: number;
+}
+
+export interface Technician {
+  id: string;
+  name: string;
+  phone?: string;
+  dailyRate: number;
+  perUnitRate: number;
+  status: 'active' | 'inactive';
+  notes?: string;
+}
+
+export type ProductionOrderStatus = 'draft' | 'in_progress' | 'completed' | 'sold' | 'cancelled';
+
+export interface ProductionOrderItem {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitCost: number;
+  total: number;
+}
+
+export interface ProductionOrder {
+  id: string;
+  orderNo: string;
+  title: string;
+  technicianId: string;
+  technicianName: string;
+  status: ProductionOrderStatus;
+  workDays: number;
+  dailyRateSnapshot: number;
+  perUnitRateSnapshot: number;
+  marginPercent: number;
+  partsCost: number;
+  laborCost: number;
+  totalCost: number;
+  sellingPrice: number;
+  profit: number;
+  notes?: string;
+  saleId?: string | null;
+  createdById: string;
+  createdByName: string;
+  items: ProductionOrderItem[];
+  createdAt: string;
+  completedAt?: string | null;
+  soldAt?: string | null;
+}
+
+export interface ProductionReportSummary {
+  ordersSold: number;
+  totalRevenue: number;
+  totalPartsCost: number;
+  totalLaborCost: number;
+  totalCost: number;
+  totalProfit: number;
+}
+
+export interface ProductionTechnicianReport {
+  technicianId: string;
+  technicianName: string;
+  ordersCount: number;
+  totalWorkDays: number;
+  dailyEarnings: number;
+  unitEarnings: number;
+  totalLabor: number;
+}
+
+export interface ProductionReport {
+  month?: string | null;
+  summary: ProductionReportSummary;
+  technicians: ProductionTechnicianReport[];
 }

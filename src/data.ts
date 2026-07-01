@@ -401,5 +401,6 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   minStockThresholdDefault: 10,
   defaultDebtLimit: 1000000,
   limitBlockSales: true,
-  mandatoryDebtDueDate: true
+  mandatoryDebtDueDate: true,
+  productionMarginPercent: 20,
 };

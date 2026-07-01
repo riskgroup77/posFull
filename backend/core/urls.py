@@ -13,11 +13,14 @@ from .views import (
     LoginView,
     MeView,
     ProductViewSet,
+    ProductionOrderViewSet,
+    ProductionReportView,
     ResetDataView,
     SaleCreateView,
     SaleReturnView,
     SaleViewSet,
     SettingsView,
+    TechnicianViewSet,
     UserViewSet,
 )
 
@@ -30,6 +33,8 @@ router.register('sales', SaleViewSet, basename='sales')
 router.register('debts', DebtViewSet, basename='debts')
 router.register('debt-payments', DebtPaymentViewSet, basename='debt-payments')
 router.register('movements', InventoryMovementViewSet, basename='movements')
+router.register('technicians', TechnicianViewSet, basename='technicians')
+router.register('production-orders', ProductionOrderViewSet, basename='production-orders')
 
 urlpatterns = [
     path('health/', HealthView.as_view(), name='health'),
@@ -41,5 +46,6 @@ urlpatterns = [
     path('sales/create/', SaleCreateView.as_view(), name='sale-create'),
     path('sales/<uuid:sale_id>/return/', SaleReturnView.as_view(), name='sale-return'),
     path('admin/reset-data/', ResetDataView.as_view(), name='reset-data'),
+    path('production/reports/', ProductionReportView.as_view(), name='production-reports'),
     path('', include(router.urls)),
 ]

@@ -13,9 +13,11 @@ from .models import (
     DebtPayment,
     InventoryMovement,
     Product,
+    ProductionOrder,
     Sale,
     SaleItem,
     StoreSettings,
+    Technician,
 )
 from .permissions import IsActiveUser, IsAdmin, IsAdminOrManager, IsNotSellerOnlyWrite
 from .throttles import LoginRateThrottle
@@ -29,15 +31,23 @@ from .serializers import (
     InventoryMovementSerializer,
     LoginSerializer,
     ProductSerializer,
+    ProductionAddPartSerializer,
+    ProductionCompleteSerializer,
+    ProductionOrderCreateSerializer,
+    ProductionOrderSerializer,
+    ProductionOrderUpdateSerializer,
+    ProductionSellSerializer,
     RepayDebtSerializer,
     ReturnSaleSerializer,
     SaleSerializer,
     StoreSettingsSerializer,
+    TechnicianSerializer,
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
 )
 from . import services
+from . import production_services
 
 User = get_user_model()
 
@@ -98,6 +108,13 @@ class BootstrapView(APIView):
                 many=True,
             ).data,
             'settings': StoreSettingsSerializer(StoreSettings.get_solo()).data,
+            'technicians': TechnicianSerializer(Technician.objects.all(), many=True).data,
+            'productionOrders': ProductionOrderSerializer(
+                ProductionOrder.objects.select_related('technician', 'created_by', 'sale')
+                .prefetch_related('items')
+                .order_by('-created_at'),
+                many=True,
+            ).data,
         }
         if user.role == User.ROLE_ADMIN:
             payload['users'] = UserSerializer(User.objects.all(), many=True).data
@@ -315,6 +332,8 @@ class ResetDataView(APIView):
     permission_classes = [IsActiveUser, IsAdmin]
 
     def post(self, request):
+        ProductionOrder.objects.all().delete()
+        Technician.objects.all().delete()
         SaleItem.objects.all().delete()
         DebtPayment.objects.all().delete()
         Debt.objects.all().delete()
@@ -323,5 +342,120 @@ class ResetDataView(APIView):
         Product.objects.all().delete()
         Customer.objects.all().delete()
         Category.objects.all().delete()
-        StoreSettings.objects.filter(pk=1).update(receipt_counter=100000)
+        StoreSettings.objects.filter(pk=1).update(receipt_counter=100000, production_counter=1)
         return Response({'detail': 'Ma\'lumotlar tozalandi'})
+
+
+class TechnicianViewSet(viewsets.ModelViewSet):
+    queryset = Technician.objects.all()
+    serializer_class = TechnicianSerializer
+    permission_classes = [IsActiveUser, IsAdminOrManager]
+
+
+class ProductionOrderViewSet(viewsets.ModelViewSet):
+    queryset = ProductionOrder.objects.select_related('technician', 'created_by', 'sale').prefetch_related('items')
+    serializer_class = ProductionOrderSerializer
+    permission_classes = [IsActiveUser, IsAdminOrManager]
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
+
+    def create(self, request, *args, **kwargs):
+        serializer = ProductionOrderCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            order = production_services.create_production_order(request.user, serializer.validated_data)
+        except (Technician.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ProductionOrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        serializer = ProductionOrderUpdateSerializer(data=request.data, partial=kwargs.get('partial', False))
+        serializer.is_valid(raise_exception=True)
+        try:
+            order = production_services.update_production_order(kwargs['pk'], serializer.validated_data)
+        except (ProductionOrder.DoesNotExist, Technician.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ProductionOrderSerializer(order).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            production_services.cancel_production_order(kwargs['pk'])
+        except (ProductionOrder.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='add-part')
+    def add_part(self, request, pk=None):
+        serializer = ProductionAddPartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            production_services.add_part_to_order(
+                request.user,
+                pk,
+                serializer.validated_data['productId'],
+                serializer.validated_data['quantity'],
+            )
+            order = ProductionOrder.objects.select_related('technician', 'created_by').prefetch_related('items').get(pk=pk)
+        except (ProductionOrder.DoesNotExist, Product.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ProductionOrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='remove-part')
+    def remove_part(self, request, pk=None):
+        item_id = request.data.get('itemId') or request.data.get('item_id')
+        if not item_id:
+            return Response({'detail': 'itemId kerak'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            production_services.remove_part_from_order(request.user, pk, item_id)
+            order = ProductionOrder.objects.select_related('technician', 'created_by').prefetch_related('items').get(pk=pk)
+        except (ProductionOrder.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ProductionOrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, pk=None):
+        serializer = ProductionCompleteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            order = production_services.complete_production_order(
+                pk,
+                selling_price=serializer.validated_data.get('sellingPrice'),
+            )
+        except (ProductionOrder.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(ProductionOrderSerializer(order).data)
+
+    @action(detail=True, methods=['post'], url_path='sell')
+    def sell(self, request, pk=None):
+        serializer = ProductionSellSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        if data.get('debtDueDate'):
+            data['debt_due_date'] = data.pop('debtDueDate')
+        if 'cashPaid' in data:
+            data['cash_paid'] = data.pop('cashPaid')
+        if 'debtAmount' in data:
+            data['debt_amount'] = data.pop('debtAmount')
+        if 'customerId' in data:
+            data['customer_id'] = data.pop('customerId')
+        if 'sellingPrice' in data:
+            data['selling_price'] = data.pop('sellingPrice')
+        try:
+            sale, order = production_services.sell_production_order(request.user, pk, data)
+        except (ProductionOrder.DoesNotExist, ValueError) as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'order': ProductionOrderSerializer(order).data,
+            'sale': SaleSerializer(sale).data,
+        })
+
+
+class ProductionReportView(APIView):
+    permission_classes = [IsActiveUser, IsAdminOrManager]
+
+    def get(self, request):
+        month = request.query_params.get('month')
+        return Response(production_services.production_report(month))

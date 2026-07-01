@@ -208,12 +208,14 @@ class InventoryMovement(models.Model):
     REASON_SALE = 'sale'
     REASON_LOSS = 'loss'
     REASON_INVENTORY_CHECK = 'inventory_check'
+    REASON_PRODUCTION = 'production'
     REASON_CHOICES = [
         (REASON_NEW_STOCK, 'New stock'),
         (REASON_RETURN, 'Return'),
         (REASON_SALE, 'Sale'),
         (REASON_LOSS, 'Loss'),
         (REASON_INVENTORY_CHECK, 'Inventory check'),
+        (REASON_PRODUCTION, 'Production'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -252,6 +254,13 @@ class StoreSettings(models.Model):
     limit_block_sales = models.BooleanField(default=True)
     mandatory_debt_due_date = models.BooleanField(default=True)
     receipt_counter = models.PositiveIntegerField(default=100000)
+    production_counter = models.PositiveIntegerField(default=1)
+    production_margin_percent = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=20,
+        help_text='Ishlab chiqarish uchun standart ustama foizi',
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -265,3 +274,117 @@ class StoreSettings(models.Model):
     def get_solo(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class Technician(models.Model):
+    STATUS_ACTIVE = 'active'
+    STATUS_INACTIVE = 'inactive'
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, 'Active'),
+        (STATUS_INACTIVE, 'Inactive'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150)
+    phone = models.CharField(max_length=32, blank=True, default='')
+    daily_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+        help_text='Kunlik ish haqi (so\'m)',
+    )
+    per_unit_rate = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+        help_text='1 ta uskuna uchun haq (so\'m)',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class ProductionOrder(models.Model):
+    STATUS_DRAFT = 'draft'
+    STATUS_IN_PROGRESS = 'in_progress'
+    STATUS_COMPLETED = 'completed'
+    STATUS_SOLD = 'sold'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, 'Draft'),
+        (STATUS_IN_PROGRESS, 'In progress'),
+        (STATUS_COMPLETED, 'Completed'),
+        (STATUS_SOLD, 'Sold'),
+        (STATUS_CANCELLED, 'Cancelled'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order_no = models.CharField(max_length=32, unique=True)
+    title = models.CharField(max_length=255)
+    technician = models.ForeignKey(
+        Technician,
+        on_delete=models.PROTECT,
+        related_name='production_orders',
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    work_days = models.PositiveSmallIntegerField(default=1, help_text='Ishlangan kunlar soni')
+    daily_rate_snapshot = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    per_unit_rate_snapshot = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    margin_percent = models.DecimalField(max_digits=6, decimal_places=2, default=20)
+    parts_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    labor_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    selling_price = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    profit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    notes = models.TextField(blank=True, default='')
+    sale = models.ForeignKey(
+        Sale,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='production_orders',
+    )
+    created_by = models.ForeignKey(
+        POSUser,
+        on_delete=models.PROTECT,
+        related_name='created_production_orders',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    sold_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.order_no} — {self.title}'
+
+
+class ProductionOrderItem(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order = models.ForeignKey(
+        ProductionOrder,
+        on_delete=models.CASCADE,
+        related_name='items',
+    )
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='production_items')
+    product_name = models.CharField(max_length=255)
+    quantity = models.DecimalField(max_digits=14, decimal_places=2)
+    unit_cost = models.DecimalField(max_digits=14, decimal_places=2)
+    total = models.DecimalField(max_digits=14, decimal_places=2)
+    movement = models.ForeignKey(
+        InventoryMovement,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='production_items',
+    )
+
+    def __str__(self):
+        return f'{self.product_name} x {self.quantity}'

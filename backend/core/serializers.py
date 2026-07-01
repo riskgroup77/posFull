@@ -10,9 +10,12 @@ from .models import (
     DebtPayment,
     InventoryMovement,
     Product,
+    ProductionOrder,
+    ProductionOrderItem,
     Sale,
     SaleItem,
     StoreSettings,
+    Technician,
 )
 
 User = get_user_model()
@@ -317,6 +320,12 @@ class StoreSettingsSerializer(serializers.ModelSerializer):
     limitBlockSales = serializers.BooleanField(source='limit_block_sales', required=False)
     mandatoryDebtDueDate = serializers.BooleanField(source='mandatory_debt_due_date', required=False)
     usdRate = serializers.DecimalField(source='usd_rate', max_digits=14, decimal_places=2, required=False)
+    productionMarginPercent = serializers.DecimalField(
+        source='production_margin_percent',
+        max_digits=6,
+        decimal_places=2,
+        required=False,
+    )
 
     class Meta:
         model = StoreSettings
@@ -324,7 +333,7 @@ class StoreSettingsSerializer(serializers.ModelSerializer):
             'storeName', 'address', 'phone', 'logoUrl', 'currency', 'usdRate',
             'taxRateDefault', 'receiptFooter', 'receiptNoFormat', 'autoPrint',
             'minStockThresholdDefault', 'defaultDebtLimit', 'limitBlockSales',
-            'mandatoryDebtDueDate',
+            'mandatoryDebtDueDate', 'productionMarginPercent',
         ]
         extra_kwargs = {'storeName': {'source': 'store_name'}}
 
@@ -344,6 +353,7 @@ class StoreSettingsSerializer(serializers.ModelSerializer):
             'defaultDebtLimit': float(instance.default_debt_limit),
             'limitBlockSales': instance.limit_block_sales,
             'mandatoryDebtDueDate': instance.mandatory_debt_due_date,
+            'productionMarginPercent': float(instance.production_margin_percent),
         }
 
     def update(self, instance, validated_data):
@@ -400,3 +410,158 @@ class ReturnSaleSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField()
+
+
+class TechnicianSerializer(serializers.ModelSerializer):
+    dailyRate = serializers.DecimalField(source='daily_rate', max_digits=14, decimal_places=2)
+    perUnitRate = serializers.DecimalField(source='per_unit_rate', max_digits=14, decimal_places=2)
+
+    class Meta:
+        model = Technician
+        fields = ['id', 'name', 'phone', 'dailyRate', 'perUnitRate', 'status', 'notes']
+
+    def to_representation(self, instance):
+        return {
+            'id': str(instance.id),
+            'name': instance.name,
+            'phone': instance.phone,
+            'dailyRate': float(instance.daily_rate),
+            'perUnitRate': float(instance.per_unit_rate),
+            'status': instance.status,
+            'notes': instance.notes,
+        }
+
+    def create(self, validated_data):
+        return Technician.objects.create(**validated_data)
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+
+class ProductionOrderItemSerializer(serializers.ModelSerializer):
+    productId = serializers.UUIDField(source='product_id', read_only=True)
+
+    class Meta:
+        model = ProductionOrderItem
+        fields = ['id', 'productId', 'productName', 'quantity', 'unitCost', 'total']
+        extra_kwargs = {
+            'productName': {'source': 'product_name'},
+            'unitCost': {'source': 'unit_cost'},
+        }
+
+    def to_representation(self, instance):
+        return {
+            'id': str(instance.id),
+            'productId': str(instance.product_id),
+            'productName': instance.product_name,
+            'quantity': float(instance.quantity),
+            'unitCost': float(instance.unit_cost),
+            'total': float(instance.total),
+        }
+
+
+class ProductionOrderSerializer(serializers.ModelSerializer):
+    technicianId = serializers.UUIDField(source='technician_id', read_only=True)
+    technicianName = serializers.CharField(source='technician.name', read_only=True)
+    orderNo = serializers.CharField(source='order_no', read_only=True)
+    workDays = serializers.IntegerField(source='work_days')
+    dailyRateSnapshot = serializers.DecimalField(
+        source='daily_rate_snapshot', max_digits=14, decimal_places=2, read_only=True,
+    )
+    perUnitRateSnapshot = serializers.DecimalField(
+        source='per_unit_rate_snapshot', max_digits=14, decimal_places=2, read_only=True,
+    )
+    marginPercent = serializers.DecimalField(source='margin_percent', max_digits=6, decimal_places=2)
+    partsCost = serializers.DecimalField(source='parts_cost', max_digits=14, decimal_places=2, read_only=True)
+    laborCost = serializers.DecimalField(source='labor_cost', max_digits=14, decimal_places=2, read_only=True)
+    totalCost = serializers.DecimalField(source='total_cost', max_digits=14, decimal_places=2, read_only=True)
+    sellingPrice = serializers.DecimalField(source='selling_price', max_digits=14, decimal_places=2)
+    saleId = serializers.UUIDField(source='sale_id', read_only=True, allow_null=True)
+    createdById = serializers.UUIDField(source='created_by_id', read_only=True)
+    createdByName = serializers.CharField(source='created_by.display_name', read_only=True)
+    items = ProductionOrderItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ProductionOrder
+        fields = [
+            'id', 'orderNo', 'title', 'technicianId', 'technicianName', 'status',
+            'workDays', 'dailyRateSnapshot', 'perUnitRateSnapshot', 'marginPercent',
+            'partsCost', 'laborCost', 'totalCost', 'sellingPrice', 'profit',
+            'notes', 'saleId', 'createdById', 'createdByName', 'items',
+            'createdAt', 'completedAt', 'soldAt',
+        ]
+        read_only_fields = [
+            'id', 'orderNo', 'partsCost', 'laborCost', 'totalCost', 'profit',
+            'saleId', 'createdById', 'createdByName', 'createdAt', 'completedAt', 'soldAt',
+        ]
+        extra_kwargs = {
+            'createdAt': {'source': 'created_at'},
+            'completedAt': {'source': 'completed_at'},
+            'soldAt': {'source': 'sold_at'},
+        }
+
+    def to_representation(self, instance):
+        return {
+            'id': str(instance.id),
+            'orderNo': instance.order_no,
+            'title': instance.title,
+            'technicianId': str(instance.technician_id),
+            'technicianName': instance.technician.name,
+            'status': instance.status,
+            'workDays': instance.work_days,
+            'dailyRateSnapshot': float(instance.daily_rate_snapshot),
+            'perUnitRateSnapshot': float(instance.per_unit_rate_snapshot),
+            'marginPercent': float(instance.margin_percent),
+            'partsCost': float(instance.parts_cost),
+            'laborCost': float(instance.labor_cost),
+            'totalCost': float(instance.total_cost),
+            'sellingPrice': float(instance.selling_price),
+            'profit': float(instance.profit),
+            'notes': instance.notes,
+            'saleId': str(instance.sale_id) if instance.sale_id else None,
+            'createdById': str(instance.created_by_id),
+            'createdByName': instance.created_by.display_name,
+            'items': ProductionOrderItemSerializer(instance.items.all(), many=True).data,
+            'createdAt': instance.created_at.isoformat(),
+            'completedAt': instance.completed_at.isoformat() if instance.completed_at else None,
+            'soldAt': instance.sold_at.isoformat() if instance.sold_at else None,
+        }
+
+
+class ProductionOrderCreateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    technicianId = serializers.UUIDField()
+    workDays = serializers.IntegerField(required=False, default=1, min_value=1)
+    marginPercent = serializers.DecimalField(max_digits=6, decimal_places=2, required=False)
+    notes = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class ProductionOrderUpdateSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255, required=False)
+    technicianId = serializers.UUIDField(required=False)
+    workDays = serializers.IntegerField(required=False, min_value=1)
+    marginPercent = serializers.DecimalField(max_digits=6, decimal_places=2, required=False)
+    sellingPrice = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class ProductionAddPartSerializer(serializers.Serializer):
+    productId = serializers.UUIDField()
+    quantity = serializers.DecimalField(max_digits=14, decimal_places=2, min_value=Decimal('0.01'))
+
+
+class ProductionCompleteSerializer(serializers.Serializer):
+    sellingPrice = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
+
+
+class ProductionSellSerializer(serializers.Serializer):
+    payment_type = serializers.ChoiceField(choices=Sale.PAYMENT_CHOICES)
+    customerId = serializers.UUIDField(required=False, allow_null=True)
+    cashPaid = serializers.DecimalField(max_digits=14, decimal_places=2, default=0)
+    debtAmount = serializers.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount = serializers.DecimalField(max_digits=14, decimal_places=2, default=0)
+    sellingPrice = serializers.DecimalField(max_digits=14, decimal_places=2, required=False)
+    debtDueDate = serializers.DateField(required=False, allow_null=True)

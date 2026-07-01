@@ -46,6 +46,7 @@ export default function SettingsComponent({
   const [defaultLimit, setDefaultLimit] = useState(String(settings.defaultDebtLimit));
   const [minStockDefault, setMinStockDefault] = useState(String(settings.minStockThresholdDefault));
   const [usdRate, setUsdRate] = useState(String(settings.usdRate || 12800));
+  const [productionMargin, setProductionMargin] = useState(String(settings.productionMarginPercent ?? 20));
 
   // Staff creation form state
   const [staffName, setStaffName] = useState('');
@@ -67,6 +68,7 @@ export default function SettingsComponent({
       defaultDebtLimit: parseFloat(defaultLimit) || 0,
       minStockThresholdDefault: parseFloat(minStockDefault) || 5,
       usdRate: parseFloat(usdRate) || 12800,
+      productionMarginPercent: parseFloat(productionMargin) || 20,
     });
 
     alert("Tizim sozlamalari muvaffaqiyatli saqlandi!");
@@ -265,6 +267,17 @@ export default function SettingsComponent({
                       value={taxRate}
                       onChange={(e) => setTaxRate(e.target.value)}
                       className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-600 mb-1">Ishlab chiqarish ustamasi (%)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={productionMargin}
+                      onChange={(e) => setProductionMargin(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-bold"
                     />
                   </div>
                   <div>
