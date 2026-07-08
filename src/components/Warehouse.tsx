@@ -93,6 +93,8 @@ export default function Warehouse({
   const [movementShkaf, setMovementShkaf] = useState<string>('');
   const [movementPolka, setMovementPolka] = useState<string>('');
   const [movementDesc, setMovementDesc] = useState<string>('');
+  const [movementProductQuery, setMovementProductQuery] = useState('');
+  const [showMovementProductList, setShowMovementProductList] = useState(false);
 
   React.useEffect(() => {
     const rate = settings.usdRate || 12800;
@@ -178,6 +180,25 @@ export default function Warehouse({
       return matchSearch && matchCategory && matchStock;
     });
   }, [products, searchQuery, selectedCategory, stockFilter]);
+
+  const movementProductOptions = useMemo(() => {
+    const q = movementProductQuery.trim().toLowerCase();
+    const list = q
+      ? products.filter(
+          (p) => p.name.toLowerCase().includes(q) || p.barcode.includes(q),
+        )
+      : products;
+    return list.slice(0, 40);
+  }, [products, movementProductQuery]);
+
+  const openMovementModal = (type: 'in' | 'out', reason: string) => {
+    setMovementType(type);
+    setMovementReason(reason as typeof movementReason);
+    setSelectedProductId('');
+    setMovementProductQuery('');
+    setShowMovementProductList(false);
+    setShowMovementModal(true);
+  };
 
   // Export filtered products to CSV
   const handleExportCSV = () => {
@@ -338,13 +359,18 @@ export default function Warehouse({
     const catId = prodCat || (categories[0]?.id || 'cat-1');
 
     if (editingProduct) {
-      // Edit
       const updatedProduct: Product = {
         ...editingProduct,
         name: prodName,
         categoryId: catId,
         barcode: barcodeStr,
-        qrCodeData: `PROD-${barcodeStr}`
+        qrCodeData: `PROD-${barcodeStr}`,
+        salePrice: parseFloat(prodSalePrice) || 0,
+        supplyPrice: parseFloat(prodSupplyPrice) || 0,
+        minStock: parseFloat(prodMinStock) || 5,
+        shkaf: prodShkaf.trim(),
+        polka: prodPolka.trim(),
+        description: prodDesc.trim(),
       };
       onUpdateProduct(updatedProduct);
       alert("Mahsulot muvaffaqiyatli tahrirlandi!");
@@ -430,6 +456,8 @@ export default function Warehouse({
     alert(movementType === 'in' ? "Omborga muvaffaqiyatli kiritildi!" : "Ombordan muvaffaqiyatli chiqarildi!");
     setShowMovementModal(false);
     setSelectedProductId('');
+    setMovementProductQuery('');
+    setShowMovementProductList(false);
     setMovementQty('');
     setMovementDoc('');
     setMovementSupplyPrice('');
@@ -785,11 +813,7 @@ export default function Warehouse({
               </button>
 
               <button
-                onClick={() => {
-                  setMovementType('in');
-                  setMovementReason('new_stock');
-                  setShowMovementModal(true);
-                }}
+                onClick={() => openMovementModal('in', 'new_stock')}
                 className="flex items-center justify-center space-x-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
               >
                 <ArrowUp className="h-4 w-4" />
@@ -797,11 +821,7 @@ export default function Warehouse({
               </button>
 
               <button
-                onClick={() => {
-                  setMovementType('out');
-                  setMovementReason('loss');
-                  setShowMovementModal(true);
-                }}
+                onClick={() => openMovementModal('out', 'loss')}
                 className="flex items-center justify-center space-x-1 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
               >
                 <ArrowDown className="h-4 w-4" />
@@ -1386,6 +1406,74 @@ export default function Warehouse({
                     <BarcodeLabel value={prodBarcode.trim()} className="mt-3" />
                   )}
                 </div>
+
+                {editingProduct && (
+                  <div className="space-y-3 border-t border-slate-100 pt-3">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                      Narxlar va joylashuv
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Xarid narxi (so&apos;m)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={prodSupplyPrice}
+                          onChange={(e) => setProdSupplyPrice(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Sotish narxi (so&apos;m)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={prodSalePrice}
+                          onChange={(e) => setProdSalePrice(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold text-blue-700"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Min. qoldiq</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={prodMinStock}
+                          onChange={(e) => setProdMinStock(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Shkaf</label>
+                        <input
+                          type="text"
+                          value={prodShkaf}
+                          onChange={(e) => setProdShkaf(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1">Polka</label>
+                        <input
+                          type="text"
+                          value={prodPolka}
+                          onChange={(e) => setProdPolka(e.target.value)}
+                          className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-600 mb-1">Tavsif</label>
+                      <textarea
+                        value={prodDesc}
+                        onChange={(e) => setProdDesc(e.target.value)}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs min-h-[60px]"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action trigger */}
@@ -1414,7 +1502,11 @@ export default function Warehouse({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
-              onClick={() => setShowMovementModal(false)}
+              onClick={() => {
+                setShowMovementModal(false);
+                setMovementProductQuery('');
+                setShowMovementProductList(false);
+              }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
             >
               <X className="h-5 w-5" />
@@ -1435,19 +1527,50 @@ export default function Warehouse({
             </h3>
 
             <form onSubmit={handleMovementSubmit} className="space-y-4">
-              <div>
+              <div className="relative">
                 <label className="block text-xs font-bold text-slate-600 mb-1">Tovarni tanlang *</label>
-                <select
-                  required
-                  value={selectedProductId}
-                  onChange={(e) => setSelectedProductId(e.target.value)}
+                <input
+                  type="text"
+                  required={!selectedProductId}
+                  placeholder="Mahsulot nomi yoki shtrix kodini yozing..."
+                  value={movementProductQuery}
+                  onChange={(e) => {
+                    setMovementProductQuery(e.target.value);
+                    setSelectedProductId('');
+                    setShowMovementProductList(true);
+                  }}
+                  onFocus={() => setShowMovementProductList(true)}
                   className="w-full px-3 py-1.5 border border-slate-300 bg-white rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">-- Tanlang --</option>
-                  {products.map(p => (
-                    <option key={p.id} value={p.id}>{p.name} (Hozirgi zaxira: {p.stock} dona)</option>
-                  ))}
-                </select>
+                />
+                {showMovementProductList && movementProductOptions.length > 0 && (
+                  <ul className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg text-xs">
+                    {movementProductOptions.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProductId(p.id);
+                            setMovementProductQuery(p.name);
+                            setShowMovementProductList(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-slate-50 last:border-0 ${
+                            selectedProductId === p.id ? 'bg-blue-50 text-blue-800 font-bold' : 'text-slate-700'
+                          }`}
+                        >
+                          <span className="font-semibold block">{p.name}</span>
+                          <span className="text-[10px] text-slate-400">
+                            Zaxira: {p.stock} · {p.barcode}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {selectedProductId && (
+                  <p className="text-[10px] text-emerald-700 font-semibold mt-1">
+                    Tanlandi: {products.find((p) => p.id === selectedProductId)?.name}
+                  </p>
+                )}
               </div>
 
               <div>

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import MoneyDisplay from './MoneyDisplay';
 import { formatUzs, formatUsd } from '../utils/currency';
+import { RECEIPT_PRINT_CSS, buildReceiptHtml, formatReceiptText } from '../utils/receipt';
 import { Product, Category, Customer, Sale, User, StoreSettings, SaleItem } from '../types';
 import { 
   Search, 
@@ -35,6 +36,44 @@ interface POSProps {
   setActiveTab: (tab: string) => void;
 }
 
+interface CartLine {
+  product: Product;
+  quantity: number;
+  unitPrice: number;
+}
+
+interface SaleSession {
+  id: string;
+  label: string;
+  cart: CartLine[];
+  discount: number;
+  discountType: 'sum' | 'percent';
+  paymentType: 'cash' | 'debt' | 'mixed';
+  selectedCustomerId: string;
+  cashReceived: string;
+  mixedCash: string;
+  mixedDebt: string;
+  dueDate: string;
+}
+
+let sessionCounter = 1;
+const createSession = (): SaleSession => {
+  const n = sessionCounter++;
+  return {
+    id: `sale-${Date.now()}-${n}`,
+    label: `Savdo ${n}`,
+    cart: [],
+    discount: 0,
+    discountType: 'sum',
+    paymentType: 'cash',
+    selectedCustomerId: '',
+    cashReceived: '',
+    mixedCash: '',
+    mixedDebt: '',
+    dueDate: '',
+  };
+};
+
 export default function POS({ 
   products,
   categories,
@@ -50,22 +89,50 @@ export default function POS({
   // POS States
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
-  const [discount, setDiscount] = useState<number>(0);
-  const [discountType, setDiscountType] = useState<'sum' | 'percent'>('sum');
-  const [paymentType, setPaymentType] = useState<'cash' | 'debt' | 'mixed'>('cash');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  
-  // Cash & Split payment calculation
-  const [cashReceived, setCashReceived] = useState<string>('');
-  const [mixedCash, setMixedCash] = useState<string>('');
-  const [mixedDebt, setMixedDebt] = useState<string>('');
-  const [dueDate, setDueDate] = useState<string>('');
+  const [sessions, setSessions] = useState<SaleSession[]>(() => [createSession()]);
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => sessions[0]?.id || '');
+
+  const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0];
+  const cart = activeSession?.cart || [];
+  const discount = activeSession?.discount || 0;
+  const discountType = activeSession?.discountType || 'sum';
+  const paymentType = activeSession?.paymentType || 'cash';
+  const selectedCustomerId = activeSession?.selectedCustomerId || '';
+  const cashReceived = activeSession?.cashReceived || '';
+  const mixedCash = activeSession?.mixedCash || '';
+  const mixedDebt = activeSession?.mixedDebt || '';
+  const dueDate = activeSession?.dueDate || '';
+
+  const patchActiveSession = (patch: Partial<SaleSession>) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === activeSessionId ? { ...s, ...patch } : s)),
+    );
+  };
+
+  const addSaleSession = () => {
+    const next = createSession();
+    setSessions((prev) => [...prev, next]);
+    setActiveSessionId(next.id);
+  };
+
+  const closeSaleSession = (sessionId: string) => {
+    if (sessions.length <= 1) return;
+    const target = sessions.find((s) => s.id === sessionId);
+    if (target && target.cart.length > 0 && !confirm(`${target.label} savatida mahsulot bor. Yopilsinmi?`)) {
+      return;
+    }
+    const next = sessions.filter((s) => s.id !== sessionId);
+    setSessions(next);
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(next[0].id);
+    }
+  };
 
   // Receipt & History Modals
   const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
   const [createdSale, setCreatedSale] = useState<Sale | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
   const [showScannerModal, setShowScannerModal] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -126,58 +193,100 @@ export default function POS({
 
   // Cart operations
   const addToCart = (product: Product) => {
-    const existing = cart.find(item => item.product.id === product.id);
+    const existing = cart.find((item) => item.product.id === product.id);
     if (existing) {
-      if (existing.quantity >= product.stock) {
+      const newQty = Math.round((existing.quantity + 1) * 1000) / 1000;
+      if (newQty > product.stock) {
         alert(`Uzr! Omborda faqat ${product.stock} ta tovar mavjud.`);
         return;
       }
-      setCart(cart.map(item => 
-        item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-      ));
+      patchActiveSession({
+        cart: cart.map((item) =>
+          item.product.id === product.id ? { ...item, quantity: newQty } : item,
+        ),
+      });
     } else {
       if (product.stock <= 0) {
         alert("Xato: Ushbu tovar omborda qolmagan!");
         return;
       }
-      setCart([...cart, { product, quantity: 1 }]);
+      patchActiveSession({
+        cart: [...cart, { product, quantity: 1, unitPrice: product.salePrice }],
+      });
     }
-    // Automatically clear the search query once a product is found and added
     setSearchQuery('');
   };
 
   const updateCartQuantity = (productId: string, delta: number) => {
-    const item = cart.find(i => i.product.id === productId);
+    const item = cart.find((i) => i.product.id === productId);
     if (!item) return;
 
-    const newQty = item.quantity + delta;
+    const newQty = Math.round((item.quantity + delta) * 1000) / 1000;
     if (newQty <= 0) {
-      setCart(cart.filter(i => i.product.id !== productId));
+      patchActiveSession({ cart: cart.filter((i) => i.product.id !== productId) });
     } else {
       if (newQty > item.product.stock) {
         alert(`Uzr! Omborda faqat ${item.product.stock} ta tovar mavjud.`);
         return;
       }
-      setCart(cart.map(i => i.product.id === productId ? { ...i, quantity: newQty } : i));
+      patchActiveSession({
+        cart: cart.map((i) => (i.product.id === productId ? { ...i, quantity: newQty } : i)),
+      });
     }
   };
 
+  const setCartLineQuantity = (productId: string, rawQty: string) => {
+    const item = cart.find((i) => i.product.id === productId);
+    if (!item) return;
+    const newQty = Math.round((parseFloat(rawQty.replace(',', '.')) || 0) * 1000) / 1000;
+    if (newQty <= 0) {
+      patchActiveSession({ cart: cart.filter((i) => i.product.id !== productId) });
+      return;
+    }
+    if (newQty > item.product.stock) {
+      alert(`Uzr! Omborda faqat ${item.product.stock} ta tovar mavjud.`);
+      return;
+    }
+    patchActiveSession({
+      cart: cart.map((i) => (i.product.id === productId ? { ...i, quantity: newQty } : i)),
+    });
+  };
+
+  const setCartLineTotal = (productId: string, rawTotal: string) => {
+    const item = cart.find((i) => i.product.id === productId);
+    if (!item || item.unitPrice <= 0) return;
+    const total = parseFloat(rawTotal.replace(/\s/g, '').replace(',', '.')) || 0;
+    if (total <= 0) return;
+    const newQty = Math.round((total / item.unitPrice) * 1000) / 1000;
+    if (newQty > item.product.stock) {
+      alert(`Uzr! Omborda faqat ${item.product.stock} ${item.product.stock === 1 ? 'dona' : 'birlik'} mavjud.`);
+      return;
+    }
+    patchActiveSession({
+      cart: cart.map((i) => (i.product.id === productId ? { ...i, quantity: newQty } : i)),
+    });
+  };
+
   const removeFromCart = (productId: string) => {
-    setCart(cart.filter(item => item.product.id !== productId));
+    patchActiveSession({ cart: cart.filter((item) => item.product.id !== productId) });
   };
 
   const clearCart = () => {
-    setCart([]);
-    setDiscount(0);
-    setSelectedCustomerId('');
-    setCashReceived('');
-    setMixedCash('');
-    setMixedDebt('');
+    patchActiveSession({
+      cart: [],
+      discount: 0,
+      selectedCustomerId: '',
+      cashReceived: '',
+      mixedCash: '',
+      mixedDebt: '',
+    });
   };
+
+  const lineTotal = (item: CartLine) => Math.round(item.unitPrice * item.quantity);
 
   // Cart math
   const subtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.product.salePrice * item.quantity, 0);
+    return cart.reduce((sum, item) => sum + lineTotal(item), 0);
   }, [cart]);
 
   const calculatedDiscount = useMemo(() => {
@@ -196,10 +305,9 @@ export default function POS({
   useEffect(() => {
     if (paymentType === 'mixed') {
       const half = Math.round(total / 2);
-      setMixedCash(String(half));
-      setMixedDebt(String(total - half));
+      patchActiveSession({ mixedCash: String(half), mixedDebt: String(total - half) });
     }
-  }, [paymentType, total]);
+  }, [paymentType, total, activeSessionId]);
 
   // Change money calculator
   const changeDue = useMemo(() => {
@@ -262,8 +370,8 @@ export default function POS({
       productId: item.product.id,
       productName: item.product.name,
       quantity: item.quantity,
-      price: item.product.salePrice,
-      total: item.product.salePrice * item.quantity
+      price: item.unitPrice,
+      total: lineTotal(item),
     }));
 
     let cashPaidValue = 0;
@@ -318,124 +426,21 @@ export default function POS({
   const downloadPDFReceipt = (sale: Sale) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-
-    const itemsHtml = sale.items.map(item => `
-      <tr style="border-bottom: 1px dashed #cbd5e1; font-size: 11px;">
-        <td style="padding: 6px 0; font-weight: bold; color: #1e293b;">${item.productName}</td>
-        <td style="padding: 6px 0; text-align: center; color: #475569;">${item.quantity} ta</td>
-        <td style="padding: 6px 0; text-align: right; color: #475569;">${formatMoney(item.price)}</td>
-        <td style="padding: 6px 0; text-align: right; font-weight: bold; color: #1e293b;">${formatMoney(item.total)}</td>
-      </tr>
-    `).join('');
-
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>CDCGroup POS - Chek #${sale.receiptNo}</title>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace;
-              width: 74mm;
-              margin: 0 auto;
-              padding: 20px 10px;
-              color: #1e293b;
-              font-size: 11px;
-              line-height: 1.4;
-            }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .bold { font-weight: bold; }
-            .divider { border-top: 1px dashed #475569; margin: 8px 0; }
-            .double-divider { border-top: 2px dashed #1e293b; margin: 8px 0; }
-            table { width: 100%; border-collapse: collapse; }
-            .footer { margin-top: 15px; font-size: 10px; color: #64748b; }
-            @media print {
-              body { width: 100%; padding: 10px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="text-center">
-            <h2 style="margin: 0 0 4px 0; font-size: 16px; font-weight: 900; letter-spacing: 0.5px;">${settings.storeName.toUpperCase()}</h2>
-            <p style="margin: 2px 0; font-size: 10px; color: #475569;">Manzil: ${settings.address}</p>
-            <p style="margin: 2px 0; font-size: 10px; color: #475569;">Tel: ${settings.phone}</p>
-          </div>
-          
-          <div class="double-divider"></div>
-          
-          <div>
-            <p style="margin: 3px 0;"><span class="bold">Chek №:</span> #${sale.receiptNo}</p>
-            <p style="margin: 3px 0;"><span class="bold">Sana:</span> ${new Date(sale.dateTime).toLocaleString('uz-UZ').replace(',', '')}</p>
-            <p style="margin: 3px 0;"><span class="bold">Kassir:</span> ${sale.sellerName}</p>
-            <p style="margin: 3px 0;"><span class="bold">Mijoz:</span> ${sale.customerName || 'Umumiy'}</p>
-          </div>
-          
-          <div class="divider"></div>
-          
-          <table>
-            <thead>
-              <tr style="border-bottom: 1px solid #1e293b; font-size: 10px; font-weight: bold;">
-                <th style="text-align: left; padding-bottom: 4px;">Mahsulot</th>
-                <th style="text-align: center; padding-bottom: 4px;">Miqdor</th>
-                <th style="text-align: right; padding-bottom: 4px;">Narx</th>
-                <th style="text-align: right; padding-bottom: 4px;">Jami</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${itemsHtml}
-            </tbody>
-          </table>
-          
-          <div class="divider"></div>
-          
-          <table style="font-weight: bold;">
-            <tr>
-              <td style="padding: 2px 0;">Jami summa:</td>
-              <td class="text-right">${formatMoney(sale.totalAmount)}</td>
-            </tr>
-            <tr>
-              <td style="padding: 2px 0;">Chegirma:</td>
-              <td class="text-right">${formatMoney(sale.discount)}</td>
-            </tr>
-            <tr style="font-size: 12px; color: #2563eb;">
-              <td style="padding: 4px 0;">TO'LANADI:</td>
-              <td class="text-right">${formatMoney(sale.finalAmount)}</td>
-            </tr>
-          </table>
-          
-          <div class="divider"></div>
-          
-          <table>
-            <tr>
-              <td style="padding: 2px 0; color: #16a34a; font-weight: bold;">Naqd to'lov:</td>
-              <td class="text-right font-weight: bold; color: #16a34a;">${formatMoney(sale.cashPaid)}</td>
-            </tr>
-            ${sale.debtAmount > 0 ? `
-            <tr>
-              <td style="padding: 2px 0; color: #ca8a04; font-weight: bold;">Nasiya summasi:</td>
-              <td class="text-right font-weight: bold; color: #ca8a04;">${formatMoney(sale.debtAmount)}</td>
-            </tr>
-            ` : ''}
-          </table>
-          
-          <div class="double-divider"></div>
-          
-          <div class="text-center footer">
-            <p style="margin: 0; font-weight: bold;">${settings.receiptFooter}</p>
-            <p style="margin: 8px 0 0 0; font-size: 8px;">CDCGroup POS tizimi orqali yaratildi</p>
-          </div>
-          
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `);
+    printWindow.document.write(buildReceiptHtml(sale, settings));
     printWindow.document.close();
   };
+
+  const filteredHistorySales = useMemo(() => {
+    const q = historySearch.trim().toLowerCase();
+    return [...sales].reverse().filter((sale) => {
+      if (!q) return true;
+      return (
+        (sale.customerName || '').toLowerCase().includes(q)
+        || sale.receiptNo.toLowerCase().includes(q)
+        || (sale.sellerName || '').toLowerCase().includes(q)
+      );
+    });
+  }, [sales, historySearch]);
 
   // Sales list & return actions
   const [returnSaleId, setReturnSaleId] = useState<string | null>(null);
@@ -453,30 +458,7 @@ export default function POS({
   return (
     <div className="pos-page select-none print:bg-white">
       
-      {/* Print styles override */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #print-area, #print-area * {
-            visibility: visible;
-          }
-          #print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 80mm;
-            padding: 4mm;
-            font-family: monospace;
-            font-size: 11px;
-            color: #000;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
+      <style>{RECEIPT_PRINT_CSS}</style>
 
       {/* Main Column Split */}
       <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 no-print w-full">
@@ -647,6 +629,43 @@ export default function POS({
         {/* RIGHT COLUMN: Interactive Shopping Cart (5/12 cols) */}
         <div className="w-full lg:col-span-5 bg-white border border-slate-200 rounded-xl shadow-sm flex flex-col justify-between max-h-[600px] lg:max-h-[750px] overflow-hidden">
           
+          {/* Savdo tablari */}
+          <div className="px-3 pt-3 pb-1 border-b border-slate-200 bg-slate-50 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+            {sessions.map((session) => (
+              <div key={session.id} className="flex items-center shrink-0">
+                <button
+                  onClick={() => setActiveSessionId(session.id)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                    session.id === activeSessionId
+                      ? 'bg-blue-600 text-white shadow'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {session.label}
+                  {session.cart.length > 0 && (
+                    <span className="ml-1 opacity-80">({session.cart.length})</span>
+                  )}
+                </button>
+                {sessions.length > 1 && (
+                  <button
+                    onClick={() => closeSaleSession(session.id)}
+                    className="ml-0.5 p-0.5 text-slate-400 hover:text-red-500"
+                    title="Yopish"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            <button
+              onClick={addSaleSession}
+              className="shrink-0 p-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+              title="Qo'shimcha savdo"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+
           {/* Cart Header */}
           <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 gap-2">
             <div>
@@ -680,7 +699,7 @@ export default function POS({
                   <h6 className="text-xs font-bold text-slate-800 leading-snug">{item.product.name}</h6>
                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                     <p className="text-[10px] text-slate-400 font-semibold">
-                      Donasi: <MoneyDisplay amountUzs={item.product.salePrice} usdRate={usdRate} inline showUsd usdClassName="text-[9px] text-emerald-600" uzsClassName="text-[10px] text-slate-500" />
+                      Donasi: <MoneyDisplay amountUzs={item.unitPrice} usdRate={usdRate} inline showUsd usdClassName="text-[9px] text-emerald-600" uzsClassName="text-[10px] text-slate-500" />
                     </p>
                     {(item.product.shkaf || item.product.polka) && (
                       <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 flex items-center shrink-0">
@@ -699,7 +718,13 @@ export default function POS({
                     >
                       <Minus className="h-3 w-3" />
                     </button>
-                    <span className="text-xs font-extrabold text-slate-800 w-5 text-center select-none">{item.quantity}</span>
+                    <input
+                      type="text"
+                      value={item.quantity}
+                      onChange={(e) => setCartLineQuantity(item.product.id, e.target.value)}
+                      className="text-xs font-extrabold text-slate-800 w-12 text-center bg-white border border-slate-200 rounded px-0.5 py-0.5"
+                      title="Miqdor (dona yoki kg)"
+                    />
                     <button
                       onClick={() => updateCartQuantity(item.product.id, 1)}
                       className="p-1 rounded bg-white text-slate-600 hover:bg-slate-200 cursor-pointer shadow-sm border border-slate-200/30"
@@ -708,13 +733,17 @@ export default function POS({
                     </button>
                   </div>
 
-                  <div className="text-right w-24">
-                    <MoneyDisplay
-                      amountUzs={item.product.salePrice * item.quantity}
-                      usdRate={usdRate}
-                      uzsClassName="text-xs font-black text-slate-950"
-                      usdClassName="text-[9px] text-emerald-600 font-bold"
+                  <div className="text-right w-28">
+                    <input
+                      type="text"
+                      value={lineTotal(item)}
+                      onChange={(e) => setCartLineTotal(item.product.id, e.target.value)}
+                      className="w-full text-right text-xs font-black text-slate-950 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5"
+                      title="Jami summa — yozilsa miqdor avto hisoblanadi"
                     />
+                    <span className="text-[9px] text-emerald-600 font-bold block mt-0.5">
+                      {formatUsd(lineTotal(item), usdRate)}
+                    </span>
                   </div>
 
                   <button
@@ -744,7 +773,7 @@ export default function POS({
               <div className="flex-1">
                 <select
                   value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  onChange={(e) => patchActiveSession({ selectedCustomerId: e.target.value })}
                   className="w-full px-3 py-1.5 border border-slate-300 bg-white rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
                   <option value="">-- Mijozni tanlang (Nasiya uchun shart) --</option>
@@ -771,7 +800,7 @@ export default function POS({
                       allowDebt: true
                     };
                     onAddCustomer(yangiMijoz);
-                    setSelectedCustomerId(yangiMijoz.id);
+                    patchActiveSession({ selectedCustomerId: yangiMijoz.id });
                   }
                 }}
                 className="p-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 cursor-pointer"
@@ -806,12 +835,12 @@ export default function POS({
                   min="0"
                   placeholder="0"
                   value={discount || ''}
-                  onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
+                  onChange={(e) => patchActiveSession({ discount: Math.max(0, parseFloat(e.target.value) || 0) })}
                   className="w-20 px-2 py-1 border border-slate-300 rounded text-right bg-white text-xs"
                 />
                 <select
                   value={discountType}
-                  onChange={(e) => setDiscountType(e.target.value as 'sum' | 'percent')}
+                  onChange={(e) => patchActiveSession({ discountType: e.target.value as 'sum' | 'percent' })}
                   className="px-1.5 py-1 border border-slate-300 rounded bg-white text-xs"
                 >
                   <option value="sum">so'm</option>
@@ -825,7 +854,7 @@ export default function POS({
               <span className="text-xs font-bold text-slate-600 block">To'lov usuli:</span>
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => setPaymentType('cash')}
+                  onClick={() => patchActiveSession({ paymentType: 'cash' })}
                   className={`py-1.5 rounded-lg border text-xs font-bold flex flex-col items-center justify-center cursor-pointer transition-all ${
                     paymentType === 'cash'
                       ? 'bg-green-600 border-green-700 text-white shadow'
@@ -841,7 +870,7 @@ export default function POS({
                     if (!selectedCustomerId) {
                       alert("Nasiya to'lovi uchun mijoz tanlashingiz shart!");
                     }
-                    setPaymentType('debt');
+                    patchActiveSession({ paymentType: 'debt' });
                   }}
                   className={`py-1.5 rounded-lg border text-xs font-bold flex flex-col items-center justify-center cursor-pointer transition-all ${
                     paymentType === 'debt'
@@ -858,7 +887,7 @@ export default function POS({
                     if (!selectedCustomerId) {
                       alert("Aralash to'lov uchun mijoz tanlashingiz shart!");
                     }
-                    setPaymentType('mixed');
+                    patchActiveSession({ paymentType: 'mixed' });
                   }}
                   className={`py-1.5 rounded-lg border text-xs font-bold flex flex-col items-center justify-center cursor-pointer transition-all ${
                     paymentType === 'mixed'
@@ -888,7 +917,7 @@ export default function POS({
                     <input
                       type="date"
                       value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
+                      onChange={(e) => patchActiveSession({ dueDate: e.target.value })}
                       className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs"
                       required
                     />
@@ -907,8 +936,10 @@ export default function POS({
                       value={mixedCash}
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0;
-                        setMixedCash(e.target.value);
-                        setMixedDebt(String(Math.max(0, total - val)));
+                        patchActiveSession({
+                          mixedCash: e.target.value,
+                          mixedDebt: String(Math.max(0, total - val)),
+                        });
                       }}
                       className="w-full px-2 py-1 border border-slate-300 rounded text-xs"
                     />
@@ -929,7 +960,7 @@ export default function POS({
                     <input
                       type="date"
                       value={dueDate}
-                      onChange={(e) => setDueDate(e.target.value)}
+                      onChange={(e) => patchActiveSession({ dueDate: e.target.value })}
                       className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs"
                       required
                     />
@@ -992,35 +1023,8 @@ export default function POS({
             </div>
 
             {/* Simulated Receipt Preview */}
-            <div id="print-area" className="border-2 border-dashed border-slate-300 p-4 rounded-lg bg-slate-50/50 max-h-96 overflow-y-auto font-mono text-xs text-slate-800 leading-relaxed whitespace-pre shadow-inner">
-{`══════════════════════════════
-      ${settings.storeName.toUpperCase()}
-  Manzil: ${settings.address.length > 22 ? settings.address.substring(0, 22) + '..' : settings.address}
-  Tel: ${settings.phone}
-══════════════════════════════
-Chek №: ${createdSale.receiptNo}
-Sana: ${new Date(createdSale.dateTime).toLocaleString('uz-UZ').replace(',', '')}
-Kassir: ${createdSale.sellerName}
-${createdSale.customerName ? `Mijoz: ${createdSale.customerName}` : 'Mijoz: Umumiy'}
-──────────────────────────────
-Mahsulot          Miqdor  Summa
-──────────────────────────────
-${createdSale.items.map(item => {
-  const namePadded = item.productName.substring(0, 15).padEnd(15, ' ');
-  const qtyPadded = String(item.quantity).padStart(5, ' ');
-  const sumPadded = String(item.total).padStart(10, ' ');
-  return `${namePadded} ${qtyPadded} ${sumPadded}`;
-}).join('\n')}
-──────────────────────────────
-Jami:                 ${String(createdSale.totalAmount).padStart(8, ' ')}
-Chegirma:             ${String(createdSale.discount).padStart(8, ' ')}
-TO'LANADI:            ${String(createdSale.finalAmount).padStart(8, ' ')}
-──────────────────────────────
-Naqd:                 ${String(createdSale.cashPaid).padStart(8, ' ')}
-Nasiya:               ${String(createdSale.debtAmount).padStart(8, ' ')}
-──────────────────────────────
-${settings.receiptFooter}
-══════════════════════════════`}
+            <div id="print-area" className="border border-dashed border-slate-300 p-2 rounded bg-white max-h-96 overflow-y-auto font-mono text-[12px] font-semibold text-black leading-tight whitespace-pre shadow-inner">
+{formatReceiptText(createdSale, settings)}
             </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
@@ -1153,10 +1157,23 @@ ${settings.receiptFooter}
               <X className="h-5 w-5" />
             </button>
 
-            <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2 mb-4">
+            <h3 className="text-sm font-black text-slate-800 flex items-center space-x-2 mb-3">
               <History className="h-5 w-5 text-blue-600" />
               <span>Sotuvlar Tarixi va Bekor qilish</span>
             </h3>
+
+            <div className="mb-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Mijoz, chek № yoki sotuvchi bo'yicha qidirish..."
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
 
             {/* Sales table */}
             <div className="flex-1 overflow-y-auto border border-slate-200 rounded-xl">
@@ -1174,14 +1191,17 @@ ${settings.receiptFooter}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                  {sales.map((sale) => (
+                  {filteredHistorySales.map((sale) => (
                     <tr key={sale.id} className={sale.status === 'returned' ? 'bg-red-50/20' : ''}>
                       <td className="px-4 py-3 text-blue-600 font-bold">
                         <div>#{sale.receiptNo}</div>
                         <div className="text-[9px] text-slate-400 block sm:hidden">{sale.customerName || 'Umumiy'}</div>
                       </td>
-                      <td className="px-4 py-3 text-[11px] font-normal text-slate-400">
-                        {new Date(sale.dateTime).toLocaleDateString('uz-UZ')}
+                      <td className="px-4 py-3 text-[11px] font-normal text-slate-500">
+                        <div>{new Date(sale.dateTime).toLocaleDateString('uz-UZ')}</div>
+                        <div className="text-[10px] text-slate-400 font-semibold">
+                          {new Date(sale.dateTime).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">{sale.sellerName}</td>
                       <td className="px-4 py-3 hidden sm:table-cell">{sale.customerName || 'Umumiy'}</td>
